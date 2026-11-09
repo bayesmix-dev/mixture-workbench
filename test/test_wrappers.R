@@ -23,9 +23,11 @@ writeLines(c("x1", "1", "2"), data)
 writeLines(c(
   "#!/bin/sh",
   "if [ ! -f \"$5\" ] || [ ! -f \"$7\" ]; then exit 12; fi",
+  "if [ -n \"${LD_LIBRARY_PATH-}\" ] || [ -n \"${DYLD_LIBRARY_PATH-}\" ] || [ -n \"${DYLD_FALLBACK_LIBRARY_PATH-}\" ]; then exit 23; fi",
   "if /usr/bin/grep -q 'fail = true' \"$5\"; then exit 17; fi",
   "mkdir -p \"$9\" || exit 13",
   "printf '%s\\n' \"$@\" > \"$9/argv.txt\"",
+  "printf '%s\\n' \"${PATH-}\" \"${JULIA_DEPOT_PATH-}\" > \"$9/environment.txt\"",
   "printf '%s\\n' 'chain,iteration,k,M,entropy,log_target' '1,10,2,3,0.693,-12.5' > \"$9/draws.csv\"",
   "printf '%s\\n' 'chain,metric,attempted,accepted,value,status' '1,split_merge,4,1,0.25,assessed' > \"$9/diagnostics.csv\"",
   "printf '%s\\n' 'key,value' 'schema_version,1' 'run_status,completed' 'description,\"quoted, value\"' > \"$9/metadata.csv\"",
@@ -51,6 +53,42 @@ inferred_api_fit <- run_sampler(config, data, inferred_api_output, julia = fake_
 inferred_api_argv <- readLines(file.path(inferred_api_output, "argv.txt"))
 stopifnot(inherits(inferred_api_fit, "mixture_fit"))
 stopifnot(identical(inferred_api_argv[[2]], paste0("--project=", root)))
+
+test_child_loader_environment <- function() {
+  variables <- c("LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH", "DYLD_FALLBACK_LIBRARY_PATH",
+                 "JULIA_DEPOT_PATH")
+  saved <- Sys.getenv(variables, unset = NA_character_)
+  on.exit({
+    Sys.unsetenv(variables)
+    present <- saved[!is.na(saved)]
+    if (length(present)) do.call(Sys.setenv, as.list(present))
+  }, add = TRUE)
+  contaminated <- setNames(
+    c("/test/R libraries/linux", "/test/R libraries/macos", "/test/R libraries/fallback",
+      "/test/Julia depot with spaces"), variables
+  )
+  do.call(Sys.setenv, as.list(contaminated))
+  caller_before <- Sys.getenv(c(variables, "PATH"), unset = NA_character_)
+  isolated_output <- file.path(directory, "isolated loader environment")
+  isolated_fit <- run_sampler(config, data, isolated_output,
+                              julia = fake_julia, project_root = project)
+  stopifnot(inherits(isolated_fit, "mixture_fit"))
+  stopifnot(identical(Sys.getenv(c(variables, "PATH"), unset = NA_character_), caller_before))
+  child_environment <- readLines(file.path(isolated_output, "environment.txt"))
+  preserved <- unname(caller_before[c("PATH", "JULIA_DEPOT_PATH")])
+  stopifnot(identical(child_environment, preserved))
+
+  failed_config <- file.path(directory, "loader environment failure.toml")
+  writeLines("fail = true", failed_config)
+  failed <- tryCatch(
+    run_sampler(failed_config, data, file.path(directory, "loader environment failed output"),
+                julia = fake_julia, project_root = project),
+    mixture_sampler_error = identity
+  )
+  stopifnot(inherits(failed, "mixture_sampler_error"), failed$status == 17L)
+  stopifnot(identical(Sys.getenv(c(variables, "PATH"), unset = NA_character_), caller_before))
+}
+test_child_loader_environment()
 
 entrypoint <- file.path("examples", "model with spaces", "sample.jl")
 dir.create(dirname(file.path(project, entrypoint)), recursive = TRUE)

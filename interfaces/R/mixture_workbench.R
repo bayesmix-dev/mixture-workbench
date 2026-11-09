@@ -83,7 +83,14 @@ run_sampler <- function(config, data, output, julia = "julia", project_root = NU
   stopifnot(is.character(julia), length(julia) == 1L, !is.na(julia), nzchar(julia))
   arguments <- c("--startup-file=no", paste0("--project=", project_root), runner,
                  "--config", config, "--data", data, "--output", output)
-  status <- system2(julia, args = shQuote(arguments), stdout = "", stderr = "")
+  # R configures loader paths for its own libraries. Do not let those override
+  # Julia's libraries in the child process. system2(env=) is Unix-only for this
+  # use; it leaves the caller, PATH and Julia-specific variables unchanged.
+  child_environment <- if (.Platform$OS.type == "unix") c(
+    "LD_LIBRARY_PATH=", "DYLD_LIBRARY_PATH=", "DYLD_FALLBACK_LIBRARY_PATH="
+  ) else character()
+  status <- system2(julia, args = shQuote(arguments), stdout = "", stderr = "",
+                    env = child_environment)
   if (status != 0L) {
     condition <- structure(
       list(message = paste("Sampler failed with exit status", status),
