@@ -6,6 +6,7 @@ include("WorkbenchCLI.jl")
 const IOProtocol = WorkbenchCLI
 const S = SpeciesSampling
 const G = GeneralDPPMixtures
+const N = GeneralDPPMixtures.NealSamplers
 
 function integer_setting(value, name; minimum=1)
     value isa Integer && !(value isa Bool) && minimum <= value <= typemax(Int) ||
@@ -18,22 +19,40 @@ function real_setting(value, name)
     Float64(value)
 end
 
-const CONFIG_KEYS = Set(["method", "strength", "discount", "observation_sd", "base_mean",
-    "base_sd", "initial_clusters", "iterations", "warmup", "thin", "chains", "seed",
-    "save_allocations"])
+const RUN_KEYS = Set(["method", "strength", "base_mean", "base_sd", "initial_clusters",
+    "iterations", "warmup", "thin", "chains", "seed", "save_allocations"])
 
-function configuration(raw::AbstractDict, y)
-    unknown = setdiff(Set(keys(raw)), CONFIG_KEYS)
+function configuration(raw::AbstractDict, y; family=:pitman_yor)
+    method = get(raw,"method",nothing)
+    if family == :pitman_yor
+        method == "pitman_yor" || throw(ArgumentError("method must be 'pitman_yor' for this entrypoint"))
+        likelihood = "gaussian_location"
+        allowed = union(RUN_KEYS,Set(["discount","observation_sd"]))
+    elseif family == :dirichlet_process
+        method in ("neal2","neal3","neal8") ||
+            throw(ArgumentError("method must be 'neal2', 'neal3' or 'neal8' for this entrypoint"))
+        likelihood = get(raw,"likelihood","gaussian_location")
+        likelihood in ("gaussian_location","poisson_lognormal") ||
+            throw(ArgumentError("likelihood must be 'gaussian_location' or 'poisson_lognormal'"))
+        likelihood == "poisson_lognormal" && method != "neal8" &&
+            throw(ArgumentError("Poisson-lognormal observations require Neal 8; Neal 2/3 need implemented conjugate operations"))
+        allowed = union(RUN_KEYS,Set(["likelihood"]))
+        push!(allowed,likelihood == "gaussian_location" ? "observation_sd" : "proposal_sd")
+        method == "neal8" && push!(allowed,"auxiliaries")
+    else
+        throw(ArgumentError("unsupported concrete entrypoint family"))
+    end
+    unknown = setdiff(Set(keys(raw)),allowed)
     isempty(unknown) || throw(ArgumentError("unsupported species-sampling settings: $(join(sort!(collect(unknown)), ", "))"))
-    get(raw, "method", nothing) == "pitman_yor" ||
-        throw(ArgumentError("method must be 'pitman_yor' for this entrypoint"))
-    alpha = real_setting(get(raw, "strength", 1.0), "strength")
-    d = real_setting(get(raw, "discount", 0.3), "discount")
-    prior = S.PitmanYor(alpha, d)
-    model = S.GaussianLocation(y;
-        observation_sd=real_setting(get(raw,"observation_sd",1.0), "observation_sd"),
-        base_mean=real_setting(get(raw,"base_mean",0.0), "base_mean"),
-        base_sd=real_setting(get(raw,"base_sd",2.0), "base_sd"))
+    alpha = real_setting(get(raw,"strength",1.0), "strength")
+    prior = family == :pitman_yor ? S.PitmanYor(alpha,
+        real_setting(get(raw,"discount",0.3),"discount")) : S.DirichletProcess(alpha)
+    mu = real_setting(get(raw,"base_mean",0.0),"base_mean")
+    sd = real_setting(get(raw,"base_sd",2.0),"base_sd")
+    model = likelihood == "gaussian_location" ? S.GaussianLocation(y;
+        observation_sd=real_setting(get(raw,"observation_sd",1.0),"observation_sd"),base_mean=mu,base_sd=sd) :
+        N.PoissonLogRate(y;base_mean=mu,base_sd=sd,
+            proposal_sd=real_setting(get(raw,"proposal_sd",0.4),"proposal_sd"))
     iterations = integer_setting(get(raw,"iterations",4000), "iterations")
     warmup = integer_setting(get(raw,"warmup",1000), "warmup"; minimum=0)
     thin = integer_setting(get(raw,"thin",5), "thin")
@@ -45,55 +64,107 @@ function configuration(raw::AbstractDict, y)
     seed = integer_setting(get(raw,"seed",123), "seed"; minimum=0)
     save = get(raw,"save_allocations",true)
     save isa Bool || throw(ArgumentError("save_allocations must be a Boolean"))
-    resolved = Dict{String,Any}("method"=>"pitman_yor", "strength"=>alpha, "discount"=>d,
-        "observation_sd"=>model.observation_sd, "base_mean"=>model.base_mean, "base_sd"=>model.base_sd,
-        "initial_clusters"=>initial, "iterations"=>iterations, "warmup"=>warmup, "thin"=>thin,
-        "chains"=>chains, "seed"=>seed, "save_allocations"=>save)
+    resolved = Dict{String,Any}("method"=>method, "strength"=>alpha,
+        "base_mean"=>mu,"base_sd"=>sd,"initial_clusters"=>initial,
+        "iterations"=>iterations,"warmup"=>warmup,"thin"=>thin,"chains"=>chains,
+        "seed"=>seed,"save_allocations"=>save)
+    if family == :pitman_yor
+        resolved["discount"] = S.discount(prior)
+    else
+        resolved["likelihood"] = likelihood
+    end
+    resolved[likelihood == "gaussian_location" ? "observation_sd" : "proposal_sd"] =
+        likelihood == "gaussian_location" ? model.observation_sd : model.proposal_sd
+    method == "neal8" && (resolved["auxiliaries"] = integer_setting(get(raw,"auxiliaries",3),"auxiliaries"))
     model, prior, resolved
 end
 
-function run(config_path, data_path, output)
+function initial_state(model,prior,c,chain)
+    seed=G.seedof(c["seed"],chain,9201)
+    if c["method"] in ("pitman_yor","neal3")
+        S.initialize(model,prior,seed;initial_clusters=c["initial_clusters"])
+    else
+        N.initialize(model,prior,seed;initial_clusters=c["initial_clusters"])
+    end
+end
+
+function sampler_sweep!(s,c)
+    method=c["method"]
+    if method == "pitman_yor"
+        S.collapsed_sweep!(s)
+    elseif method == "neal2"
+        N.neal2_sweep!(s)
+    elseif method == "neal3"
+        N.neal3_sweep!(s)
+    elseif method == "neal8"
+        N.neal8_sweep!(s;auxiliaries=c["auxiliaries"])
+    else
+        throw(ArgumentError("unsupported implemented sampler"))
+    end
+end
+
+function run(config_path, data_path, output;family=:pitman_yor)
     names, A = IOProtocol.read_numeric_csv(data_path)
     size(A,2)==1 || throw(ArgumentError("species-sampling example requires exactly one observation column"))
-    model, prior, c = configuration(TOML.parsefile(config_path), vec(A))
+    model, prior, c = configuration(TOML.parsefile(config_path), vec(A);family)
     out = abspath(output)
     !ispath(out) || isdir(out) && isempty(readdir(out)) ||
         throw(ArgumentError("output must be absent or an empty directory"))
-    S.initialize(model, prior, G.seedof(c["seed"],1,9201);initial_clusters=c["initial_clusters"])
+    initial_state(model,prior,c,1)
     mkpath(out)
     open(joinpath(out,"config.toml"),"w") do io; TOML.print(io,c;sorted=true); end
-    metadata = Dict{String,Any}("schema_version"=>1, "model"=>"pitman_yor_gaussian_location",
-        "sampler"=>"collapsed_gibbs", "strength"=>S.strength(prior), "discount"=>S.discount(prior),
-        "observation_sd"=>model.observation_sd, "base_mean"=>model.base_mean, "base_sd"=>model.base_sd,
+    retained = c["method"] in ("neal2","neal8")
+    gaussian = model isa S.GaussianLocation
+    modelname = family == :pitman_yor ? "pitman_yor_gaussian_location" :
+        gaussian ? "dirichlet_process_gaussian_location" : "dirichlet_process_poisson_lognormal"
+    metadata = Dict{String,Any}("schema_version"=>1, "model"=>modelname,
+        "sampler"=>c["method"], "strength"=>S.strength(prior), "discount"=>S.discount(prior),
+        "base_mean"=>model.base_mean, "base_sd"=>model.base_sd,
         "n"=>length(model.y), "d"=>1, "column_names"=>names, "chains"=>c["chains"],
         "iterations"=>c["iterations"], "warmup"=>c["warmup"], "thin"=>c["thin"], "seed"=>c["seed"],
         "source_digest"=>IOProtocol.source_digest(),
         "input_sha256"=>bytes2hex(sha256(read(data_path))), "config_sha256"=>bytes2hex(sha256(read(config_path))),
         "julia_version"=>string(VERSION), "run_status"=>"running", "empirical_bayes"=>false,
-        "log_target_definition"=>"partition_eppf_times_integrated_gaussian_likelihood",
+        "log_target_definition"=>(retained ? "partition_eppf_times_occupied_base_and_likelihood" :
+            "partition_eppf_times_integrated_gaussian_likelihood"),
         "allocation_labels"=>"canonical_by_first_appearance",
         "M_definition"=>"represented_occupied_atoms_equals_k", "total_components"=>"infinite",
         "counter_scope"=>"warmup_and_sampling", "mixing_assessment"=>"unassessed")
+    metadata[gaussian ? "observation_sd" : "proposal_sd"] = gaussian ? model.observation_sd : model.proposal_sd
+    metadata["parameter_name"] = gaussian ? "mean" : "log_rate"
+    retained && gaussian && (metadata["partition_log_target_definition"] = "partition_eppf_times_integrated_gaussian_likelihood")
+    haskey(c,"auxiliaries") && (metadata["auxiliaries"] = c["auxiliaries"])
     IOProtocol.write_metadata(out,metadata)
     draws = open(joinpath(out,"draws.csv"),"w")
     diagnostics = open(joinpath(out,"diagnostics.csv"),"w")
     allocations = c["save_allocations"] ? open(joinpath(out,"allocations.csv"),"w") : nothing
-    IOProtocol.writerow(draws,("chain","iteration","k","M","entropy","log_target"))
+    parameters = retained ? open(joinpath(out,"parameters.csv"),"w") : nothing
+    headers=String["chain","iteration","k","M","entropy","log_target"]
+    retained && gaussian && push!(headers,"partition_log_target")
+    IOProtocol.writerow(draws,headers)
+    parameters===nothing || IOProtocol.writerow(parameters,("chain","iteration","cluster","theta"))
     IOProtocol.writerow(diagnostics,("chain","metric","attempted","accepted","value","status"))
     allocations===nothing || IOProtocol.writerow(allocations,("chain","iteration","observation","cluster"))
     started = time()
     try
         for chain in 1:c["chains"]
-            s = S.initialize(model,prior,G.seedof(c["seed"],chain,9201);initial_clusters=c["initial_clusters"])
+            s = initial_state(model,prior,c,chain)
             for iteration in 1:c["iterations"]
-                S.collapsed_sweep!(s)
+                sampler_sweep!(s,c)
                 if iteration>c["warmup"] && (iteration-c["warmup"])%c["thin"]==0
                     labels = S.canonical_labels(s.z)
                     counts = S.cluster_counts(labels)
                     entropy = -sum(nh/length(labels)*log(nh/length(labels)) for nh in counts)
-                    lp = S.collapsed_logtarget(s)
+                    lp = retained ? N.joint_logtarget(s) : S.collapsed_logtarget(s)
                     isfinite(lp) || error("sampled state has a nonfinite target")
-                    IOProtocol.writerow(draws,(chain,iteration,length(counts),length(counts),entropy,lp))
+                    row=Any[chain,iteration,length(counts),length(counts),entropy,lp]
+                    retained && gaussian && push!(row,S.collapsed_logtarget(s))
+                    IOProtocol.writerow(draws,row)
+                    if parameters!==nothing
+                        for h in eachindex(s.theta)
+                            IOProtocol.writerow(parameters,(chain,iteration,h,s.theta[h]))
+                        end
+                    end
                     if allocations!==nothing
                         for i in eachindex(labels)
                             IOProtocol.writerow(allocations,(chain,iteration,i,labels[i]))
@@ -103,10 +174,16 @@ function run(config_path, data_path, output)
             end
             IOProtocol.writerow(diagnostics,(chain,"allocation_gibbs",length(model.y)*s.sweeps,
                 length(model.y)*s.sweeps,1.0,"exact_conditional"))
+            if retained
+                IOProtocol.writerow(diagnostics,(chain,"atom_mh",s.atom_attempts,s.atom_accepts,
+                    s.atom_attempts>0 ? s.atom_accepts/s.atom_attempts : NaN,
+                    gaussian ? "not_required_exact_conditional" : "observed"))
+            end
             IOProtocol.writerow(diagnostics,(chain,"mixing",0,0,NaN,"unassessed"))
-            println("Completed Pitman-Yor chain $chain/$(c["chains"])")
+            println("Completed $(c["method"]) chain $chain/$(c["chains"])")
         end
         flush(draws); flush(diagnostics)
+        parameters===nothing || flush(parameters)
         allocations===nothing || flush(allocations)
         metadata["run_status"]="completed"
         metadata["elapsed_seconds"]=time()-started
@@ -118,13 +195,14 @@ function run(config_path, data_path, output)
         rethrow()
     finally
         close(draws); close(diagnostics)
+        parameters===nothing || close(parameters)
         allocations===nothing || close(allocations)
     end
     out
 end
 
-function main(args=ARGS)
+function main(args=ARGS;family=:pitman_yor)
     parsed=IOProtocol.parse_args(args)
-    run(parsed["--config"],parsed["--data"],parsed["--output"])
+    run(parsed["--config"],parsed["--data"],parsed["--output"];family)
 end
 end

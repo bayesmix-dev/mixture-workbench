@@ -8,5 +8,6 @@ include("samplers.jl")
 include("experiment.jl")
 include("diagnostics.jl")
 include("SpeciesSampling.jl")
-export SpeciesSampling
+include("NealSamplers.jl")
+export SpeciesSampling, NealSamplers
 end

@@ -14,6 +14,7 @@ head(as.data.frame(fit))
 fit$diagnostics
 fit$metadata
 fit$allocations
+fit$parameters
 
 # Read an existing run without starting Julia:
 fit <- read_sampler_output("results/r-run")
@@ -24,6 +25,17 @@ fit <- read_sampler_output("results/r-run")
 are local to each draw; the wrapper does not relabel components across draws.
 The wrapper does not interpret a model language or choose an inference algorithm.
 The TOML configuration must select an implemented model and supported settings.
+
+When a sampler writes `parameters.csv`, `fit$parameters` is a data frame with
+`chain`, `iteration`, `cluster` and `theta` columns. It is `NULL` when that file
+is absent, including older runs. The first three columns are positive R
+integers, and `theta` is a finite double. `fit$metadata[["parameter_name"]]`
+describes the parameter; the implemented examples use `mean` or `log_rate`.
+Join parameter rows to allocations by `chain`, `iteration` and `cluster`.
+An optional positive integer `gem_index` records the sampler's ordered
+stick-breaking index. Neither index provides component identities across draws.
+Parameter identifiers beyond `.Machine$integer.max` are rejected explicitly;
+empty parameter tables remain data frames with zero rows.
 
 To run from the command line:
 

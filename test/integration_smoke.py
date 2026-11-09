@@ -146,7 +146,8 @@ def check_partition_fit(output: Path, observations: list[float], model: str):
     assert fit.metadata["total_components"] == "infinite"
     assert fit.metadata["empirical_bayes"] == "false"
     assert fit.metadata["mixing_assessment"] == "unassessed"
-    assert fit.metadata["log_target_definition"] == "partition_eppf_times_integrated_gaussian_likelihood"
+    assert fit.metadata["log_target_definition"] in ("partition_eppf_times_integrated_gaussian_likelihood",
+                                                      "partition_eppf_times_occupied_base_and_likelihood")
     assert len(fit.draws) == 4
     assert [r["iteration"] for r in fit.draws] == [6, 8, 10, 12]
     assert fit.allocations is not None and len(fit.allocations) == 4 * len(observations)
@@ -180,9 +181,52 @@ def check_partition_fit(output: Path, observations: list[float], model: str):
             means[label] = posterior_variance * (mean / v + y / variance)
             variances[label] = posterior_variance
             counts[label] = counts.get(label, 0) + 1
-        assert math.isclose(draw["log_target"], target, rel_tol=1e-11, abs_tol=1e-9), (draw, target)
+        assert math.isclose(draw.get("partition_log_target", draw["log_target"]), target,
+                            rel_tol=1e-11, abs_tol=1e-9), (draw, target)
         entropy = -sum(n / len(labels) * math.log(n / len(labels)) for n in counts.values())
         assert math.isclose(draw["entropy"], entropy, abs_tol=1e-12)
+    return fit
+
+
+
+def check_neal_fit(output: Path, observations: list[float], likelihood: str, method: str):
+    model = f"dirichlet_process_{likelihood}"
+    fit = (check_partition_fit(output, observations, model) if likelihood == "gaussian_location"
+           else read_output(output))
+    assert fit.metadata["model"] == model and fit.metadata["sampler"] == method
+    assert len(fit.draws) == 4 and fit.allocations is not None
+    if method == "neal3":
+        assert fit.parameters is None
+        return fit
+    assert fit.parameters is not None
+    assert fit.metadata["log_target_definition"] == "partition_eppf_times_occupied_base_and_likelihood"
+    alpha = float(fit.metadata["strength"])
+    mu = float(fit.metadata["base_mean"])
+    sd = float(fit.metadata["base_sd"])
+    for draw in fit.draws:
+        assert draw["M"] == draw["k"]
+        atoms = [r for r in fit.parameters if r["iteration"] == draw["iteration"]]
+        assert len(atoms) == draw["k"]
+        theta = {r["cluster"]: r["theta"] for r in atoms}
+        assert set(theta) == set(range(1, draw["k"] + 1))
+        rows = sorted((r for r in fit.allocations if r["iteration"] == draw["iteration"]),
+                      key=lambda r: r["observation"])
+        counts = {}
+        target = 0.0
+        for i, (y, row) in enumerate(zip(observations, rows)):
+            label = row["cluster"]
+            if i:
+                target += math.log(counts.get(label, alpha)) - math.log(alpha + i)
+            counts[label] = counts.get(label, 0) + 1
+            value = theta[label]
+            if likelihood == "gaussian_location":
+                sigma = float(fit.metadata["observation_sd"])
+                target += -math.log(sigma) - 0.5 * math.log(2 * math.pi) - 0.5 * ((y - value) / sigma) ** 2
+            else:
+                target += y * value - math.exp(value) - math.lgamma(y + 1)
+        target += sum(-math.log(sd) - 0.5 * math.log(2 * math.pi) - 0.5 * ((t - mu) / sd) ** 2
+                      for t in theta.values())
+        assert math.isclose(draw["log_target"], target, rel_tol=1e-11, abs_tol=1e-9), (draw, target)
     return fit
 
 
@@ -301,6 +345,43 @@ def main() -> None:
         ), 1):
             config.write_text(settings.replace(*replacement))
             output = directory / f"Invalid Pitman-Yor {index}"
+            process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+            assert process.returncode != 0 and expected in process.stderr, process.stdout + process.stderr
+            assert not output.exists()
+        entrypoint = "examples/dirichlet_process/run.jl"
+        for method, likelihood, observations in (
+            ("neal2", "gaussian_location", [-1.2, -0.4, 0.0, 0.9, 1.3]),
+            ("neal3", "gaussian_location", [-1.2, -0.4, 0.0, 0.9, 1.3]),
+            ("neal8", "gaussian_location", [-1.2, -0.4, 0.0, 0.9, 1.3]),
+            ("neal8", "poisson_lognormal", [0, 1, 2, 5, 8]),
+        ):
+            species_data.write_text("y\n" + "\n".join(map(str, observations)) + "\n")
+            settings = (f'method = "{method}"\nlikelihood = "{likelihood}"\nstrength = 1.0\n'
+                        'base_mean = 0.0\nbase_sd = 2.0\n' + common)
+            if method == "neal8":
+                settings += "auxiliaries = 3\n"
+            config.write_text(settings)
+            outputs = []
+            for language in ("python", "R"):
+                print(f"Real smoke: {language} -> Julia {method} {likelihood}", flush=True)
+                output = directory / f"{method} {likelihood} {language}'s output"
+                process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+                assert process.returncode == 0, process.stdout + process.stderr
+                check_neal_fit(output, observations, likelihood, method)
+                outputs.append(output)
+            filenames = ["draws.csv", "allocations.csv", "diagnostics.csv"]
+            if method != "neal3":
+                filenames.append("parameters.csv")
+            for filename in filenames:
+                assert (outputs[0] / filename).read_bytes() == (outputs[1] / filename).read_bytes()
+        for index, (language, invalid, expected) in enumerate((
+            ("python", 'method = "neal2"\nlikelihood = "poisson_lognormal"\n', "require Neal 8"),
+            ("R", 'method = "neal3"\nlikelihood = "poisson_lognormal"\n', "require Neal 8"),
+            ("python", 'method = "neal8"\nauxiliaries = 0\n', "auxiliaries"),
+            ("R", 'method = "neal8"\ndiscount = 0.3\n', "unsupported species-sampling settings"),
+        ), 1):
+            config.write_text(invalid + common)
+            output = directory / f"Invalid Neal {index}"
             process = invoke(language, config, species_data, output, entrypoint=entrypoint)
             assert process.returncode != 0 and expected in process.stderr, process.stdout + process.stderr
             assert not output.exists()
