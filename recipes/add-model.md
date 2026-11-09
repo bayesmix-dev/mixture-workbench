@@ -12,3 +12,5 @@
 8. Run the relevant checks and report exploration evidence for the example.
 
 If development uses an agent, preserve the substantive prompts and human corrections as an extension record. Deliver source, target notes, example, reproduction commands and passed/failed/unassessed checks.
+
+A complete source-level example is the [Poisson-lognormal finite mixture](../examples/poisson_lognormal/README.md), including its task prompts and validation record.

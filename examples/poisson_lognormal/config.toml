@@ -1,0 +1,12 @@
+method = "poisson_lognormal"
+components = 3
+weight_shape = 0.5
+base_mean = 1.0
+base_sd = 1.5
+proposal_sd = 0.6
+iterations = 4000
+warmup = 1000
+thin = 5
+chains = 4
+seed = 123
+save_allocations = true

@@ -1,0 +1,66 @@
+{
+  "recorded_date": "2026-11-09",
+  "scope": "First source-level extension: fixed-M Poisson mixture with Gaussian base measure on log rates",
+  "environment": {
+    "Julia": "1.12.3",
+    "Python": "3.13.2",
+    "R": "4.5.0",
+    "BLAS_threads": 1,
+    "Julia_test_threads": 2
+  },
+  "checks": [
+    {
+      "command": "julia --startup-file=no --threads=2 --project=. test/runtests.jl",
+      "status": "passed",
+      "assertions": 125995,
+      "extension_assertions": 1011,
+      "scope": "Entire portable numerical suite, CLI validation and Poisson extension"
+    },
+    {
+      "command": "python3 -m unittest discover -s test -p 'test_*.py'",
+      "status": "passed",
+      "tests": 12,
+      "scope": "Python wrapper unit/contract checks"
+    },
+    {
+      "command": "Rscript test/test_wrappers.R",
+      "status": "passed",
+      "scope": "Base-R wrapper contract and root-inference checks"
+    },
+    {
+      "command": "python3 test/integration_smoke.py",
+      "status": "passed",
+      "valid_runs": 8,
+      "rejected_configurations": 8,
+      "scope": "Real Julia sampling through R and Python with root inference, paths with spaces/quotes, identical seeded draws and independent Poisson target reconstruction"
+    },
+    {
+      "command": "julia --startup-file=no --project=. test/poisson_lognormal.jl",
+      "status": "passed",
+      "assertions": 1011,
+      "scope": "Standalone extension checks"
+    }
+  ],
+  "review": {
+    "status": "reviewed_and_corrected",
+    "checks": [
+      "labelled target and component priors",
+      "allocation full conditionals",
+      "symmetric Metropolis ratio",
+      "empty-component prior refresh",
+      "canonical allocation/parameter correspondence",
+      "count and total-count exactness range",
+      "flush before completion publication",
+      "scope of numerical evidence"
+    ],
+    "independent_reviewer_reran_tests": false
+  },
+  "limitations": [
+    "Fixed total component count; this extension is not an MFM",
+    "No Poisson split-merge or tempering implementation",
+    "Independent numerical quadrature checks partition probabilities for one tiny problem (n=3, M=2)",
+    "Mixing for the supplied demonstration dataset and arbitrary new data is unassessed",
+    "Per-count and total counts must be smaller than 2^53 under the shared Float64 CSV protocol"
+  ],
+  "ci": "The repository workflow runs the full suite and integration_smoke.py on each pull request. Consult the PR checks for commit-specific remote results."
+}

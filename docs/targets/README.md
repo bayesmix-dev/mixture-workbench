@@ -1,6 +1,6 @@
 # Targets and state representations
 
-The current observation models are multivariate Gaussian. The implementations below use different priors and different collapsed representations. Their targets must be identified before sharing a transition.
+The baseline observation models are multivariate Gaussian. The [worked count-model extension](../../examples/poisson_lognormal/README.md) adds a fixed-component Poisson mixture with Gaussian log-rate priors. The implementations below use different priors and different collapsed representations. Their targets must be identified before sharing a transition.
 
 | Implementation | Retained state and integrated quantities | Source | Checks |
 |---|---|---|---|
@@ -8,6 +8,8 @@ The current observation models are multivariate Gaussian. The implementations be
 | Marginal spectral DPP | Allocations, occupied locations and spectral subset; component covariances integrated conditional on locations | [src/primitives.jl](../../src/primitives.jl), [src/samplers.jl](../../src/samplers.jl) | [test/runtests.jl](../../test/runtests.jl), [test/dpp_sequential_balance.jl](../../test/dpp_sequential_balance.jl) |
 | Conditional spectral DPP | The spectral model augmented with an unused configuration and component marks used by the conditional updates | [src/samplers.jl](../../src/samplers.jl) | [test/runtests.jl](../../test/runtests.jl) |
 | General point-process sampler | Allocations, occupied and unused locations, component marks and auxiliary variable `logu`; location prior supplied by DPP or Strauss geometry | [src/PointProcessSampler.jl](../../src/PointProcessSampler.jl) | [test/runtests.jl](../../test/runtests.jl), [test/mahalanobis_strauss.jl](../../test/mahalanobis_strauss.jl) |
+
+The Poisson-lognormal extension retains labelled allocations and all fixed-`M` log rates, integrating only the Dirichlet weights. Its complete target and output representation are documented in the [example](../../examples/poisson_lognormal/README.md), with independent checks in [test/poisson_lognormal.jl](../../test/poisson_lognormal.jl).
 
 `k` is the occupied component count. `M` is the total component count in the MFM and general point-process states; in the spectral DPP states the corresponding count is the size of the retained spectral subset. Numerical equality of `k` or `M` across models does not identify equal posterior distributions.
 
