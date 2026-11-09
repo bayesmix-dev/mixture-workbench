@@ -1,6 +1,6 @@
 module CLITests
 using Test, TOML
-include("../src/WorkbenchCLI.jl")
+include("../src/cli/WorkbenchCLI.jl")
 const W=WorkbenchCLI
 
 @testset "Strict settings and portable input contract" begin

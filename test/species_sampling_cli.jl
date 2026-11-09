@@ -1,6 +1,6 @@
 module SpeciesSamplingCLITests
 using Test, TOML, GeneralDPPMixtures
-include("../src/SpeciesSamplingCLI.jl")
+include("../src/cli/SpeciesSamplingCLI.jl")
 const C = SpeciesSamplingCLI
 
 @testset "Pitman-Yor execution contract" begin

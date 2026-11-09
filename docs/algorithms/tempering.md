@@ -10,8 +10,8 @@ Only the `beta = 1` slot has the original posterior target. Each independent dia
 
 | Model | Definition of `L` | Source | Checks |
 |---|---|---|---|
-| MFM | Product of NIW cluster evidences, integrating component means and covariances | [src/MFMLikelihoodTempering.jl](../../src/MFMLikelihoodTempering.jl), [src/MFMTarget.jl](../../src/MFMTarget.jl) | [test/mfm_likelihood_tempering.jl](../../test/mfm_likelihood_tempering.jl) |
-| Marginal DPP | Product of covariance-collapsed cluster likelihoods conditional on retained locations | [src/DPPLikelihoodTempering.jl](../../src/DPPLikelihoodTempering.jl), [src/primitives.jl](../../src/primitives.jl) | [test/dpp_likelihood_tempering.jl](../../test/dpp_likelihood_tempering.jl), [test/dpp_powered_collapsed_balance.jl](../../test/dpp_powered_collapsed_balance.jl) |
+| MFM | Product of NIW cluster evidences, integrating component means and covariances | [src/models/mfm/algorithms/MFMLikelihoodTempering.jl](../../src/models/mfm/algorithms/MFMLikelihoodTempering.jl), [src/models/mfm/MFMTarget.jl](../../src/models/mfm/MFMTarget.jl) | [test/mfm_likelihood_tempering.jl](../../test/mfm_likelihood_tempering.jl) |
+| Marginal DPP | Product of covariance-collapsed cluster likelihoods conditional on retained locations | [src/models/point_process/algorithms/DPPLikelihoodTempering.jl](../../src/models/point_process/algorithms/DPPLikelihoodTempering.jl), [Gaussian covariance evidence](../../src/components/gaussian_fixed_location_iw.jl) | [test/dpp_likelihood_tempering.jl](../../test/dpp_likelihood_tempering.jl), [test/dpp_powered_collapsed_balance.jl](../../test/dpp_powered_collapsed_balance.jl) |
 
 For compatible states and fixed temperatures, the symmetric swap log ratio is `(beta_i - beta_j) * (log L(s_j) - log L(s_i))`. Compatibility includes using the same underlying model and prior. Replica provenance, state and random streams must follow the implementation's swap convention.
 
@@ -24,7 +24,7 @@ Powering a collapsed likelihood and integrating a powered likelihood generally g
 integral f(y | theta)^beta G(dtheta)
 ```
 
-The distinction also occurs inside proposal construction. The powered DPP allocation proposal uses `A_beta`, which integrates the fixed-location covariance-collapsed likelihood raised to `beta` over candidate centres. It is not `A^beta`. This extra integration constructs a proposal and does not remove the retained locations from the DPP target. See [src/DPPCollapsedReallocation.jl](../../src/DPPCollapsedReallocation.jl) and [src/DPPSequentialSplitMerge.jl](../../src/DPPSequentialSplitMerge.jl).
+The distinction also occurs inside proposal construction. The powered DPP allocation proposal uses `A_beta`, which integrates the fixed-location covariance-collapsed likelihood raised to `beta` over candidate centres. It is not `A^beta`. This extra integration constructs a proposal and does not remove the retained locations from the DPP target. See [src/models/point_process/algorithms/DPPCollapsedReallocation.jl](../../src/models/point_process/algorithms/DPPCollapsedReallocation.jl) and [src/models/point_process/algorithms/DPPSequentialSplitMerge.jl](../../src/models/point_process/algorithms/DPPSequentialSplitMerge.jl).
 
 Some powered auxiliary integrals require a properness condition on `beta`. Respect the source gates and documented fallback proposals; do not extrapolate a cold formula to arbitrary temperatures. The public CLI accepts only implemented method/tempering combinations and validates its ladder before sampling.
 

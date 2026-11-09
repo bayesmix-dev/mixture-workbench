@@ -36,6 +36,10 @@ Rscript interfaces/R/run_sampler.R \
   --output results/r-mfm
 ```
 
+## Source layout
+
+The [source navigation guide](src/README.md) maps the hybrid hierarchy. Shared component calculations and prior laws live in `src/components/` and `src/priors/`; each family under `src/models/` owns its retained states, targets and algorithms. `src/core/`, `src/execution/`, `src/diagnostics/`, `src/calibration/` and `src/cli/` cover the supporting code. Directory READMEs identify entry points, dependencies and extension boundaries.
+
 ## Find the relevant code
 
 | Task | Start here |
@@ -62,13 +66,13 @@ The [efficient DP slice example](examples/dp_slice/README.md) uses a dynamically
 
 ## What is shared
 
-`src/GeneralDPPMixtures.jl` loads the Gaussian data structures, sufficient statistics, spectral representation and conditional/marginal DPP samplers. `src/Benchmark.jl` assembles additional model-specific modules, including the MFM baseline and point-process sampler. Module names are retained from the research code so that implementations and existing checks remain traceable.
+`src/GeneralDPPMixtures.jl` loads the Gaussian data structures, sufficient statistics, spectral representation and conditional/marginal DPP samplers. `src/execution/Benchmark.jl` assembles additional model-specific modules, including the MFM baseline and point-process sampler. Module names are retained from the research code so that implementations and existing checks remain traceable.
 
 The command-line layer chooses among these concrete implementations. It writes CSV draws and diagnostics plus configuration metadata. R and Python exchange files with this layer and do not implement an additional sampler.
 
-Some retained `Benchmark` helpers belong to the original application driver: `data()` expects its application CSVs and `source_digest()` expects its research scripts. Those inputs are excluded from this repository. Use the documented CLI for portable runs and `WorkbenchCLI.source_digest()` for the publication source fingerprint.
+Some retained `Benchmark` helpers belong to the original application driver: `data()` expects its application CSVs and `source_digest()` expects its research scripts. Those inputs are excluded from this repository. Use the documented CLI for portable runs and `IOProtocol.source_digest()` for the publication source fingerprint.
 
-The CLI uses fixed data-dependent prior settings and records them in metadata, including `empirical_bayes = true`. Its defaults and validation are in [`src/WorkbenchCLI.jl`](src/WorkbenchCLI.jl); see the [command-line contract](docs/cli.md) before fitting your own data.
+The CLI uses fixed data-dependent prior settings and records them in metadata, including `empirical_bayes = true`. Its defaults and validation are in [`src/cli/WorkbenchCLI.jl`](src/cli/WorkbenchCLI.jl); see the [command-line contract](docs/cli.md) before fitting your own data.
 
 Shared code follows demonstrated compatibility. For example, the NIW-collapsed MFM evidence is different from the fixed-location, covariance-collapsed evidence used in the DPP sampler. Changing one is not sufficient to change the other.
 

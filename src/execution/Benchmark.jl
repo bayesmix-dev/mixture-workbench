@@ -1,34 +1,34 @@
 module Benchmark
 using GeneralDPPMixtures, LinearAlgebra, StaticArrays, Statistics, Random, Serialization, SHA, TOML, Printf
 const G=GeneralDPPMixtures
-include("PointProcessSampler.jl")
-include("MahalanobisRepulsion.jl")
-include("MahalanobisStrauss.jl")
-include("MFMBaseline.jl")
-include("Elicitation.jl")
-include("../vendor/projection_DPP/src/DPPSplitMerge.jl")
-include("DPPReallocation.jl")
-include("DPPMultiReallocation.jl")
-include("DPPCollapsedReallocation.jl")
-include("DPPSequentialSplitMerge.jl")
-include("DPPGlobalSplitMerge.jl")
-include("DPPLikelihoodTempering.jl")
-include("DPPPriorRefresh.jl")
-include("DPPEnsembleReferences.jl")
-include("DPPFixedCount.jl")
-include("MFMTarget.jl")
-include("MFMHyperparameters.jl")
-include("MFMBlockMoves.jl")
-include("MFMSequentialSplitMerge.jl")
-include("MFMConcentrationSplitMerge.jl")
-include("MFMLikelihoodTempering.jl")
-include("MFMReferenceIndependence.jl")
+include("../models/point_process/PointProcessSampler.jl")
+include("../priors/point_process/MahalanobisRepulsion.jl")
+include("../priors/point_process/MahalanobisStrauss.jl")
+include("../models/mfm/MFMBaseline.jl")
+include("../calibration/Elicitation.jl")
+include("../../vendor/projection_DPP/src/DPPSplitMerge.jl")
+include("../models/point_process/algorithms/DPPReallocation.jl")
+include("../models/point_process/algorithms/DPPMultiReallocation.jl")
+include("../models/point_process/algorithms/DPPCollapsedReallocation.jl")
+include("../models/point_process/algorithms/DPPSequentialSplitMerge.jl")
+include("../models/point_process/algorithms/DPPGlobalSplitMerge.jl")
+include("../models/point_process/algorithms/DPPLikelihoodTempering.jl")
+include("../models/point_process/algorithms/DPPPriorRefresh.jl")
+include("../models/point_process/algorithms/DPPEnsembleReferences.jl")
+include("../models/point_process/algorithms/DPPFixedCount.jl")
+include("../models/mfm/MFMTarget.jl")
+include("../models/mfm/algorithms/MFMHyperparameters.jl")
+include("../models/mfm/algorithms/MFMBlockMoves.jl")
+include("../models/mfm/algorithms/MFMSequentialSplitMerge.jl")
+include("../models/mfm/algorithms/MFMConcentrationSplitMerge.jl")
+include("../models/mfm/algorithms/MFMLikelihoodTempering.jl")
+include("../models/mfm/algorithms/MFMReferenceIndependence.jl")
 const PP=PointProcessSampler
 const MF=MFMBaseline
 const SM=DPPSplitMerge
 const SM_LOCK=ReentrantLock() # protects the rare global BigFloat precision fallback
 const METHODS=[:mfm,:dpp_conditional,:dpp_marginal,:dpp_marginal_sm,:dpp_general,:strauss_general]
-const ROOT=dirname(@__DIR__)
+const ROOT=dirname(dirname(@__DIR__))
 const DATA_DIR=get(ENV,"REPULSIVE_DATA_DIR",joinpath(ROOT,"data"))
 
 spectrum_from_prior(y,p,domain=get(p,"domain","padded")) =
@@ -55,7 +55,7 @@ function model(y,seed; spectrum=G.make_spectrum(length(first(y))),weight_shape=.
         a=weight_shape,tau=Float64(d+2),omega=omega,seed=UInt64(seed))
 end
 function source_digest()
-    files=sort(vcat([joinpath(ROOT,"src",f) for f in readdir(joinpath(ROOT,"src")) if endswith(f,".jl")],
+    files=sort(vcat([joinpath(dir,f) for (dir,_,files) in walkdir(joinpath(ROOT,"src")) for f in files if endswith(f,".jl")],
         [joinpath(ROOT,"vendor/projection_DPP/src/DPPSplitMerge.jl"),joinpath(ROOT,"Project.toml"),joinpath(ROOT,"Manifest.toml")],
         [joinpath(ROOT,"scripts",f) for f in readdir(joinpath(ROOT,"scripts")) if endswith(f,".jl")]))
     bytes2hex(sha256(join([relpath(f,ROOT)*":"*bytes2hex(sha256(read(f))) for f in files],"\n")))
@@ -131,7 +131,7 @@ end
 function atomicserialize(path,x)
     serialize(path*".tmp",x); mv(path*".tmp",path;force=true)
 end
-include("CovarianceExchange.jl")
+include("../execution/CovarianceExchange.jl")
 function runjob(m,init,elic,method,chain,out,iterations,burnin,digest;checkpoint_every=250,ladder=Float64[],targetscale=1.)
     dir=joinpath(out,string(method),"chain$chain"); mkpath(dir)
     spec=(method=method,chain=chain,iterations=iterations,burnin=burnin,source=digest,

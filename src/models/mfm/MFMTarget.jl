@@ -6,26 +6,9 @@ const G=GeneralDPPMixtures
 
 export log_marginal,likelihood,partition_logtarget,logtarget,logfallingfactorial
 
-"""Stable log of the falling factorial (M)_k; impossible counts have zero mass."""
-function logfallingfactorial(M::Integer,k::Integer)
-    0<=k<=M || return -Inf
-    sum(log(Float64(M-j)) for j in 0:k-1;init=0.)
-end
+include("../../priors/finite_mixture/counts.jl")
+include("../../components/gaussian_niw.jl")
 
-"""
-NIW cluster evidence, integrating BOTH mean and covariance:
-Sigma~IW(tau,Omega), mu|Sigma~N(mu0,Sigma/kappa).
-Cluster.x and its fixed-location covariance cache are irrelevant to this target.
-"""
-function log_marginal(s::MF.State,c::G.Cluster)
-    n=c.n;n==0 && return 0.
-    m=s.model;d=length(s.mu0);kap=s.kappa+n
-    delta=c.mean-s.mu0
-    scale=m.omega+c.scatter+(s.kappa*n/kap)*(delta*delta')
-    ld=2sum(log,diag(cholesky(Symmetric(scale)).L))
-    -n*d/2*log(pi)+d/2*(log(s.kappa)-log(kap))+m.tau/2*m.logdetomega-
-        (m.tau+n)/2*ld+G.logmultigamma((m.tau+n)/2,d)-G.logmultigamma(m.tau/2,d)
-end
 function member_cluster(s,members::AbstractVector{<:Integer})
     length(unique(members))==length(members) && all(i->1<=i<=length(s.c),members) ||
         throw(ArgumentError("invalid cluster members"))

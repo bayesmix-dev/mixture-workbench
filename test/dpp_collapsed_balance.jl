@@ -1,6 +1,6 @@
 # Standalone: julia --project=. test/dpp_collapsed_balance.jl
 # Exhaustive tiny partition kernels and read-only proposals, no application MCMC.
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 module DPPCollapsedBalanceTests
 using Test,GeneralDPPMixtures,Random,LinearAlgebra,StaticArrays,Statistics,SpecialFunctions,Serialization
 const G=GeneralDPPMixtures

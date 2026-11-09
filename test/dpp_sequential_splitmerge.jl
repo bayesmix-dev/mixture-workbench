@@ -1,7 +1,7 @@
 # Standalone: julia --project=. --threads=2 test/dpp_sequential_splitmerge.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:DPPSequentialSplitMerge)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/DPPSequentialSplitMerge.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/point_process/algorithms/DPPSequentialSplitMerge.jl"))
 end
 
 module DPPSequentialSplitMergeTests

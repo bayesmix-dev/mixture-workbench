@@ -1,6 +1,6 @@
 module NealCLITests
 using Test, TOML
-include("../src/SpeciesSamplingCLI.jl")
+include("../src/cli/SpeciesSamplingCLI.jl")
 const C=SpeciesSamplingCLI
 @testset "Neal sampler execution contract" begin
     mktempdir() do dir

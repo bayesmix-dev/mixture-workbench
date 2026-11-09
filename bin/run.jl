@@ -7,7 +7,7 @@ if ARGS==["--help"]
     println("Output must be absent or empty. See examples/gaussian and docs/cli.md.")
 else
     try
-        include(joinpath(@__DIR__,"..","src","WorkbenchCLI.jl"))
+        include(joinpath(@__DIR__,"..","src","cli","WorkbenchCLI.jl"))
         WorkbenchCLI.main()
     catch err
         println(stderr,"Mixture Workbench: ",sprint(showerror,err))

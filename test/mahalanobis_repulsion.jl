@@ -1,7 +1,7 @@
 # Standalone: julia --project=. test/mahalanobis_repulsion.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:MahalanobisRepulsion)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MahalanobisRepulsion.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/priors/point_process/MahalanobisRepulsion.jl"))
 end
 module MahalanobisRepulsionTests
 using Test,GeneralDPPMixtures,LinearAlgebra,StaticArrays,Statistics,Serialization,Random

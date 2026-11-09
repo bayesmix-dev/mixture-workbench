@@ -3,8 +3,8 @@ module NealSamplerTests
 using Test, Random, Distributions, SpecialFunctions, QuadGK, Statistics, Serialization, LinearAlgebra
 using GeneralDPPMixtures
 const G = GeneralDPPMixtures
-isdefined(G,:SpeciesSampling) || Base.include(G,joinpath(@__DIR__,"..","src","SpeciesSampling.jl"))
-isdefined(G,:NealSamplers) || Base.include(G,joinpath(@__DIR__,"..","src","NealSamplers.jl"))
+isdefined(G,:SpeciesSampling) || Base.include(G,joinpath(@__DIR__,"..","src","models","species_sampling","SpeciesSampling.jl"))
+isdefined(G,:NealSamplers) || Base.include(G,joinpath(@__DIR__,"..","src","models","species_sampling","algorithms","NealSamplers.jl"))
 const S = G.SpeciesSampling
 const N = G.NealSamplers
 bytes(x) = begin io=IOBuffer(); serialize(io,x); take!(io); end

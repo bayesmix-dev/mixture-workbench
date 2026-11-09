@@ -1,6 +1,6 @@
 # Standalone: julia --project=. --threads=4 test/dpp_powered_collapsed.jl
 # Toy density/transition checks only; no application data or application chains.
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 module DPPPoweredCollapsedTests
 using Test,GeneralDPPMixtures,LinearAlgebra,Random,StaticArrays,Statistics,Serialization,SpecialFunctions,QuadGK
 const G=GeneralDPPMixtures

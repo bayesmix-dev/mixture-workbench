@@ -1,9 +1,9 @@
 # Standalone: julia --project=. test/dpp_reallocation.jl
 if !isdefined(Main,:Benchmark)
-    include("../src/Benchmark.jl")
+    include("../src/execution/Benchmark.jl")
 end
 if !isdefined(Main.Benchmark,:DPPReallocation)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/DPPReallocation.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/point_process/algorithms/DPPReallocation.jl"))
 end
 
 module DPPReallocationTests

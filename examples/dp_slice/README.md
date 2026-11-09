@@ -13,7 +13,7 @@ The weights are \(w_j=V_j\prod_{\ell<j}(1-V_\ell)\), with independent \(V_j\sim\
 
 The residual bound excludes every later atom. The finite prefix changes with the slices; no fixed truncation is introduced. See the [published article](https://doi.org/10.1007/s11222-009-9150-y) for the blocked update.
 
-[`src/EfficientSlice.jl`](../../src/EfficientSlice.jl) computes stick complements, weights, slices and residuals in log scale. Shape-one sticks use an exponential construction; other Beta sticks use log Gamma variates with a shape boost for a small second shape. Unrepresentable draws or residual updates abort explicitly. Configuration has no component cap or residual tolerance that changes the target.
+[`src/models/species_sampling/algorithms/EfficientSlice.jl`](../../src/models/species_sampling/algorithms/EfficientSlice.jl) computes stick complements, weights, slices and residuals in log scale. Shape-one sticks use an exponential construction; other Beta sticks use log Gamma variates with a shape boost for a small second shape. Unrepresentable draws or residual updates abort explicitly. Configuration has no component cap or residual tolerance that changes the target.
 
 ## Run from any supported language
 

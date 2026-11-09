@@ -1,6 +1,6 @@
 module SliceCLITests
 using Test, TOML
-include("../src/SpeciesSamplingCLI.jl")
+include("../src/cli/SpeciesSamplingCLI.jl")
 const C=SpeciesSamplingCLI
 @testset "Efficient slice execution contract" begin
     mktempdir() do dir

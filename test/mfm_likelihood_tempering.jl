@@ -1,10 +1,10 @@
 # Standalone: julia --project=. --threads=2 test/mfm_likelihood_tempering.jl
-if !isdefined(Main,:Benchmark); include("../src/Benchmark.jl"); end
+if !isdefined(Main,:Benchmark); include("../src/execution/Benchmark.jl"); end
 if !isdefined(Main.Benchmark,:MFMTarget)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMTarget.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/MFMTarget.jl"))
 end
 if !isdefined(Main.Benchmark,:MFMLikelihoodTempering)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMLikelihoodTempering.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/algorithms/MFMLikelihoodTempering.jl"))
 end
 
 module MFMLikelihoodTemperingTests

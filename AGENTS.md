@@ -2,6 +2,8 @@
 
 This is a Julia research workbench with file-based R and Python command-line wrappers. Work on complete source implementations. Configuration files select implemented behaviour; do not infer a sampler from an unfamiliar model name or silently substitute a supported model.
 
+Read [src/README.md](src/README.md) and the relevant family README before editing. Source directories describe ownership; Julia module names are preserved. Shared file IO is in `src/cli/IOProtocol.jl` and can load without the sampler or benchmark. Source fingerprints recursively include every Julia source file.
+
 ## Navigate by task
 
 | Task | Read before editing |
@@ -27,6 +29,14 @@ Rscript test/test_wrappers.R
 ```
 
 For a CLI smoke run, use the command in `README.md`. Keep runtime results under `results/` or another ignored output directory.
+
+## Source ownership
+
+- Put implemented likelihood/base calculations in `src/components/`, prior laws in `src/priors/`, and state-dependent targets/transitions in `src/models/<family>/`.
+- Keep canonical partitions, retained-atom states and ordered GEM states distinct. Preserve ordered gaps inside the slice sampler.
+- Consult the owning loader before including a file: extracted files may define methods inside the original Julia module. Moving a file does not change its namespace.
+- Keep model-specific split–merge and tempering calculations beside their targets. Share utilities only when their assumptions agree.
+- Add Julia sources beneath `src/` so recursive source hashing covers them; update relative includes, examples, tests and documentation when paths change.
 
 ## Invariants
 

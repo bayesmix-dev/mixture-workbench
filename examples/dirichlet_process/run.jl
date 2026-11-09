@@ -3,7 +3,7 @@ if ARGS == ["--help"]
     println("Dirichlet-process mixtures: Neal algorithms 2, 3 and 8")
     println("Usage: julia --project=. examples/dirichlet_process/run.jl --config FILE.toml --data FILE.csv --output DIRECTORY")
 else
-    include(joinpath(@__DIR__,"..","..","src","SpeciesSamplingCLI.jl"))
+    include(joinpath(@__DIR__,"..","..","src","cli","SpeciesSamplingCLI.jl"))
     try
         SpeciesSamplingCLI.main(;family=:dirichlet_process)
     catch error

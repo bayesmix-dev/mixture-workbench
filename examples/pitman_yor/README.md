@@ -1,6 +1,6 @@
 # Pitman–Yor Gaussian location mixture
 
-This extension changes the allocation prior through ordinary Julia source. [`SpeciesSampling`](../../src/SpeciesSampling.jl) separates a partition prior from a component model. The runnable example uses a Normal base distribution and a known observation standard deviation. R and Python use the existing file interface.
+This extension changes the allocation prior through ordinary Julia source. [`SpeciesSampling`](../../src/models/species_sampling/SpeciesSampling.jl) separates a partition prior from a component model. The runnable example uses a Normal base distribution and a known observation standard deviation. R and Python use the existing file interface.
 
 ## Model and target
 

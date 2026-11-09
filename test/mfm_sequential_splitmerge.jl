@@ -1,5 +1,5 @@
 # Standalone: julia --project=. test/mfm_sequential_splitmerge.jl
-if !isdefined(Main,:Benchmark); include("../src/Benchmark.jl"); end
+if !isdefined(Main,:Benchmark); include("../src/execution/Benchmark.jl"); end
 
 module MFMSequentialSplitMergeTests
 using Test,GeneralDPPMixtures,Random,LinearAlgebra,StaticArrays,Serialization,SpecialFunctions

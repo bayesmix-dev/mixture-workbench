@@ -1,0 +1,70 @@
+{
+  "date": "2026-11-09",
+  "baseline_commit": "f755a1aa71230b1791cf3af8f5cc9fe47bd8b951",
+  "operation": "Source hierarchy reorganization with preserved Julia namespaces and sampler behavior",
+  "checks": [
+    {
+      "command": "julia --startup-file=no --project=. test/runtests.jl",
+      "status": "passed",
+      "assertions": 288142,
+      "new_provenance_checks": 12
+    },
+    {
+      "command": "python3 -m unittest discover -s test -p 'test_*.py'",
+      "status": "passed",
+      "tests": 20
+    },
+    {
+      "command": "Rscript test/test_wrappers.R",
+      "status": "passed"
+    },
+    {
+      "command": "python3 test/integration_smoke.py",
+      "status": "passed",
+      "actual_wrapper_runs": 20,
+      "rejected_configurations": 18
+    },
+    {
+      "check": "Seeded old/new CLI trajectories",
+      "status": "passed",
+      "configurations": 13,
+      "byte_identical_result_tables": 43,
+      "configuration": "12 iterations,4 warmup,thin2,one chain,seed42; existing example prior settings and all six baseline Gaussian methods",
+      "compared": "draws.csv,allocations.csv,diagnostics.csv,parameters.csv when present",
+      "excluded": "metadata source fingerprints and runtime fields intentionally change with code location and execution"
+    },
+    {
+      "check": "Expanded package and Benchmark include-tree AST comparison",
+      "status": "passed",
+      "scope": "Independent reviewer checked normalized Julia ASTs with owning modules preserved; differences limited to expected Benchmark root-depth and recursive-hash code."
+    },
+    {
+      "check": "Species-sampling internal trajectory comparison",
+      "status": "passed",
+      "checks": 244,
+      "trajectory_records": 240,
+      "scope": "Independent old/new modules; states,targets,counters,slice auxiliaries,next RNG draws and exports compared."
+    },
+    {
+      "check": "Active Markdown relative links and Julia include targets",
+      "status": "passed"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "layout": {
+    "source_readmes": 17,
+    "public_module_names": "preserved",
+    "cli_entrypoint_paths": "preserved",
+    "historical_prompt_and_provenance_paths": "preserved as archival records",
+    "source_hash": "Recursively includes all src Julia files, vendored move and pinned environment; paths normalized relative to repository."
+  },
+  "environment": {
+    "julia": "1.12.3",
+    "python": "3.13.2",
+    "R": "4.5.0",
+    "platform": "macOS arm64"
+  }
+}

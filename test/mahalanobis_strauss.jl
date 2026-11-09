@@ -1,7 +1,7 @@
 # Standalone: julia --project=. test/mahalanobis_strauss.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:MahalanobisStrauss)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MahalanobisStrauss.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/priors/point_process/MahalanobisStrauss.jl"))
 end
 module MahalanobisStraussTests
 using Test, GeneralDPPMixtures, LinearAlgebra, StaticArrays, Random, Statistics, Distributions, Serialization

@@ -1,5 +1,5 @@
 using Test, GeneralDPPMixtures, Random, Distributions, Statistics, LinearAlgebra, StaticArrays, SpecialFunctions, QuadGK, Serialization
-include("../src/Benchmark.jl")
+include("../src/execution/Benchmark.jl")
 const B=Benchmark
 const G=GeneralDPPMixtures
 const PP=B.PP
@@ -184,3 +184,5 @@ include("neal_samplers.jl")
 include("neal_cli.jl")
 include("efficient_slice.jl")
 include("slice_cli.jl")
+
+include("source_layout.jl")

@@ -4,8 +4,8 @@ using Test, Random, Distributions, SpecialFunctions, Statistics, LinearAlgebra,
     QuadGK, Serialization
 
 module Subject
-include(joinpath(@__DIR__,"..","src","SpeciesSampling.jl"))
-include(joinpath(@__DIR__,"..","src","EfficientSlice.jl"))
+include(joinpath(@__DIR__,"..","src","models","species_sampling","SpeciesSampling.jl"))
+include(joinpath(@__DIR__,"..","src","models","species_sampling","algorithms","EfficientSlice.jl"))
 end
 const SS=Subject.SpeciesSampling
 const ES=Subject.EfficientSlice

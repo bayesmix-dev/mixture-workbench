@@ -1,5 +1,5 @@
 # Standalone: julia --project=. --threads=4 test/dpp_collapsed_reallocation.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 module DPPCollapsedReallocationTests
 using Test,GeneralDPPMixtures,LinearAlgebra,Random,StaticArrays,Statistics,Serialization
 const G=GeneralDPPMixtures

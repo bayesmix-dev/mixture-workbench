@@ -1,7 +1,7 @@
 # Standalone: julia --project=. test/dpp_multi_reallocation.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:DPPMultiReallocation)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/DPPMultiReallocation.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/point_process/algorithms/DPPMultiReallocation.jl"))
 end
 module DPPMultiReallocationTests
 using Test, GeneralDPPMixtures, Random, LinearAlgebra, StaticArrays, Statistics, Serialization, SpecialFunctions

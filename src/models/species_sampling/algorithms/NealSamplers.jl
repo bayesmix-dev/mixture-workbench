@@ -14,131 +14,11 @@ export PoissonLogRate, State, initialize, neal2_sweep!, neal3_sweep!, neal8_swee
     collapsed_logtarget, check_state, auxiliary_logweights, atom_logconditional,
     atom_mh_logratio
 
-"""
-Nonconjugate Poisson observations with a Gaussian base measure on log rates.
-Counts and their total must be smaller than 2^53. Calculations use Float64:
-full joint densities include factorial terms and can lose absolute precision
-for very large counts; MH ratios cancel those terms before evaluation.
-"""
-struct PoissonLogRate <: S.ComponentModel
-    y::Vector{Int}
-    base_mean::Float64
-    base_sd::Float64
-    proposal_sd::Float64
-end
-
-function _positive(x, name)
-    x isa Real && !(x isa Bool) && isfinite(x) && x > 0 ||
-        throw(ArgumentError("$name must be finite and positive"))
-    value = Float64(x)
-    isfinite(value) && value>0 || throw(ArgumentError("$name is outside the supported Float64 range"))
-    value
-end
-
-function PoissonLogRate(y::AbstractVector; base_mean=0.0, base_sd=2.0, proposal_sd=0.4)
-    isempty(y) && throw(ArgumentError("observations must be nonempty"))
-    counts = Int[]
-    for value in y
-        value isa Real && !(value isa Bool) && isfinite(value) && value >= 0 && isinteger(value) ||
-            throw(ArgumentError("Poisson observations must be nonnegative integers"))
-        value < 2.0^53 || throw(ArgumentError("Poisson observations must be smaller than 2^53"))
-        push!(counts, Int(value))
-    end
-    sum(BigInt, counts) < big(2)^53 ||
-        throw(ArgumentError("the total count must be smaller than 2^53"))
-    base_mean isa Real && !(base_mean isa Bool) && isfinite(base_mean) ||
-        throw(ArgumentError("base_mean must be finite"))
-    isfinite(Float64(base_mean)) || throw(ArgumentError("base_mean is outside the supported Float64 range"))
-    PoissonLogRate(counts, Float64(base_mean), _positive(base_sd,"base_sd"),
-        _positive(proposal_sd,"proposal_sd"))
-end
-
-# Adapted from examples/poisson_lognormal/PoissonLognormal.jl: keep the
-# factorial term and perform the symmetric random walk on the log-rate scale.
-function loglikelihood(::PoissonLogRate, y, theta)
-    isfinite(theta) || return -Inf
-    rate = exp(theta)
-    isfinite(rate) || return -Inf
-    y * theta - rate - loggamma(y + 1.0)
-end
-logbase(m::PoissonLogRate, theta) =
-    -log(m.base_sd) - 0.5log(2pi) - 0.5((theta-m.base_mean)/m.base_sd)^2
-randbase(rng::AbstractRNG, m::PoissonLogRate) = m.base_mean + m.base_sd * randn(rng)
-
-"""Occupied atoms and allocations; DP weights are integrated out."""
-mutable struct State{M<:S.ComponentModel}
-    model::M
-    prior::S.DirichletProcess
-    z::Vector{Int}
-    theta::Vector{Float64}
-    rng::Xoshiro
-    sweeps::Int
-    atom_attempts::Int
-    atom_accepts::Int
-end
-
-_conjugate(::S.ComponentModel) = false
-_conjugate(::S.GaussianLocation) = true
-
-function initialize(model::S.ComponentModel, prior::S.PartitionPrior, seed::Integer;
-        initial_clusters=1, partition=nothing)
-    prior isa S.DirichletProcess ||
-        throw(ArgumentError("the named Neal kernels require DirichletProcess; use an explicit DP prior"))
-    model isa Union{S.GaussianLocation,PoissonLogRate} ||
-        throw(ArgumentError("no atom update is implemented for $(typeof(model))"))
-    # The shared collapsed initializer additionally requires logmarginal, which
-    # is deliberately unavailable for the nonconjugate model.
-    base = if _conjugate(model)
-        S.initialize(model, prior, seed; initial_clusters, partition)
-    else
-        !(seed isa Bool) && seed>=0 || throw(ArgumentError("seed must be a nonnegative integer"))
-        n=length(model.y)
-        z=if partition===nothing
-            initial_clusters isa Integer && !(initial_clusters isa Bool) && 1<=initial_clusters<=n ||
-                throw(ArgumentError("initial_clusters must be an integer between one and the sample size"))
-            [mod1(i,initial_clusters) for i in 1:n]
-        else
-            length(partition)==n || throw(ArgumentError("partition length must equal the sample size"))
-            S.canonical_labels(partition)
-        end
-        S.State(model,prior,z,Xoshiro(seed),0)
-    end
-    theta = if _conjugate(model)
-        [S.randposterior(base.rng, model, findall(==(h),base.z)) for h in 1:maximum(base.z)]
-    else
-        fill(model.base_mean, maximum(base.z))
-    end
-    state = State(model, prior, base.z, theta, base.rng, 0, 0, 0)
-    check_state(state)
-    state
-end
-
-"""Canonical-partition joint density with respect to Lebesgue measure on occupied atoms."""
-function joint_logtarget(s::State)
-    counts = [count(==(h),s.z) for h in eachindex(s.theta)]
-    S.logeppf(s.prior, counts) + sum(logbase(s.model,theta) for theta in s.theta) +
-        sum(loglikelihood(s.model,s.model.y[i],s.theta[s.z[i]]) for i in eachindex(s.z))
-end
-
-"""Atom-integrated target, available for the conjugate Gaussian model only."""
-function collapsed_logtarget(s::State)
-    _conjugate(s.model) || throw(ArgumentError("no analytic collapsed target is implemented for this model"))
-    counts = [count(==(h),s.z) for h in eachindex(s.theta)]
-    S.logeppf(s.prior,counts) +
-        sum(S.logmarginal(s.model,findall(==(h),s.z)) for h in eachindex(s.theta))
-end
-
-function check_state(s::State)
-    length(s.z) == length(s.model.y) && !isempty(s.z) ||
-        throw(ArgumentError("allocations must cover every observation"))
-    all(z->1<=z<=length(s.theta),s.z) && s.z == S.canonical_labels(s.z) &&
-        maximum(s.z) == length(s.theta) || throw(ArgumentError("occupied atoms must match canonical allocations"))
-    all(isfinite,s.theta) && isfinite(joint_logtarget(s)) ||
-        throw(ArgumentError("state has a nonfinite joint target"))
-    s.sweeps>=0 && 0<=s.atom_accepts<=s.atom_attempts ||
-        throw(ArgumentError("sampler counters are inconsistent"))
-    true
-end
+# The component methods remain in NealSamplers so public type identities and
+# method ownership are unchanged by the source layout.
+include("../../../components/poisson_lognormal.jl")
+include("../retained_state.jl")
+include("../retained_targets.jl")
 
 function _canonicalize!(s::State)
     order = unique(s.z)
@@ -301,5 +181,6 @@ function neal8_sweep!(s::State; auxiliaries=3)
     s.sweeps += 1
     s
 end
+
 
 end

@@ -1,7 +1,7 @@
 # Standalone: julia --project=. test/dpp_likelihood_tempering.jl
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:DPPLikelihoodTempering)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/DPPLikelihoodTempering.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/point_process/algorithms/DPPLikelihoodTempering.jl"))
 end
 module DPPLikelihoodTemperingTests
 using Test, GeneralDPPMixtures, LinearAlgebra, Random, StaticArrays, Statistics, Serialization, SpecialFunctions, QuadGK

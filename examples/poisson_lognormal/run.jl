@@ -8,9 +8,8 @@ end
 
 module PoissonLognormalCLI
 using GeneralDPPMixtures, TOML, SHA
-include(joinpath(@__DIR__,"..","..","src","WorkbenchCLI.jl"))
+include(joinpath(@__DIR__,"..","..","src","cli","IOProtocol.jl"))
 include("PoissonLognormal.jl")
-const IOProtocol=WorkbenchCLI
 const P=PoissonLognormal
 const G=GeneralDPPMixtures
 

@@ -1,19 +1,3 @@
-function canonical_labels(c)
-    map=Dict{Int,Int}(); out=similar(c)
-    for i in eachindex(c); out[i]=get!(map,c[i],length(map)+1); end
-    out
-end
-function collapsed_logtarget(state)
-    s=core(state); m=s.model; M=length(s.S); k=length(s.active); n=length(s.c)
-    logp=m.spectrum.logp0-log(-expm1(m.spectrum.logp0))
-    for j in s.S; logp+=m.spectrum.logodds[m.spectrum.shell[j]]; end
-    logp+=loggamma(m.a*M)-loggamma(n+m.a*M)+s.ld-k*m.logvolume
-    for h in s.active
-        c=s.clusters[h]
-        logp+=loggamma(c.n+m.a)-loggamma(m.a)+log_marginal(c,m)
-    end
-    logp
-end
 choose2(n)=n*(n-1)/2
 function ari(c,truth)
     counts=Dict{Tuple{Int,Int},Int}(); rows=Dict{Int,Int}(); cols=Dict{Int,Int}()

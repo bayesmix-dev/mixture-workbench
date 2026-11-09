@@ -1,9 +1,9 @@
 # Standalone: julia --project=. test/dpp_sequential_balance.jl
 # Exhaustive finite partition/proposal tests. Continuous DPP geometry and center
 # densities are tested independently in dpp_sequential_splitmerge.jl.
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:DPPSequentialSplitMerge)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/DPPSequentialSplitMerge.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/point_process/algorithms/DPPSequentialSplitMerge.jl"))
 end
 
 module DPPSequentialBalanceTests

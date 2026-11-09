@@ -1,6 +1,6 @@
 # Standalone: julia --project=. test/dpp_powered_collapsed_balance.jl
 # Exact anchored toy transition laws only; no application MCMC or screening.
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 module DPPPoweredCollapsedBalanceTests
 using Test,GeneralDPPMixtures,Random,LinearAlgebra,StaticArrays,SpecialFunctions,Serialization
 const G=GeneralDPPMixtures

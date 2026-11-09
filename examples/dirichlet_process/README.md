@@ -48,7 +48,7 @@ Neal 2/8 write `parameters.csv`: `chain,iteration,cluster,theta`. The `theta` va
 
 ## Source and evidence
 
-[`src/NealSamplers.jl`](../../src/NealSamplers.jl) contains explicit transitions. To add a component model, implement its base/likelihood and a valid atom update; integrate it into the source-level capability checks and CLI if desired. Neal 2/3 additionally require exact conjugate operations. Unsupported operations produce errors rather than an inferred implementation.
+[`src/models/species_sampling/algorithms/NealSamplers.jl`](../../src/models/species_sampling/algorithms/NealSamplers.jl) contains explicit transitions. To add a component model, implement its base/likelihood and a valid atom update; integrate it into the source-level capability checks and CLI if desired. Neal 2/3 additionally require exact conjugate operations. Unsupported operations produce errors rather than an inferred implementation.
 
 [`test/neal_samplers.jl`](../../test/neal_samplers.jl) checks retained targets, singleton recycling, auxiliary weights, component conditionals and tiny partition posteriors using independent Gaussian vector densities and Poisson quadrature. It checks large-count MH differences against BigFloat references. The real wrapper smoke test reconstructs joint targets from exported allocations and parameters and compares seeded R/Python files.
 

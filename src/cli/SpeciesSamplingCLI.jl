@@ -2,8 +2,7 @@ module SpeciesSamplingCLI
 
 using GeneralDPPMixtures, TOML, SHA
 using GeneralDPPMixtures.SpeciesSampling
-include("WorkbenchCLI.jl")
-const IOProtocol = WorkbenchCLI
+include("IOProtocol.jl")
 const S = SpeciesSampling
 const G = GeneralDPPMixtures
 const N = GeneralDPPMixtures.NealSamplers

@@ -1,10 +1,10 @@
 # Standalone: julia --project=. test/mfm_block_moves.jl
-if !isdefined(Main,:Benchmark); include("../src/Benchmark.jl"); end
+if !isdefined(Main,:Benchmark); include("../src/execution/Benchmark.jl"); end
 if !isdefined(Main.Benchmark,:MFMTarget)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMTarget.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/MFMTarget.jl"))
 end
 if !isdefined(Main.Benchmark,:MFMBlockMoves)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMBlockMoves.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/algorithms/MFMBlockMoves.jl"))
 end
 
 module MFMBlockMoveTests

@@ -2,7 +2,7 @@
 
 **Outcome:** a complete, runnable implementation for the new observation distribution, with explicit requirements and independent checks. A log-density function alone is not a sampler.
 
-1. Read `docs/targets/README.md` and choose a nearby complete implementation. The current Gaussian sufficient statistics and evidence are in `src/primitives.jl`; the MFM predictive calculations are in `src/MFMBaseline.jl` and `src/MFMTarget.jl`.
+1. Read `docs/targets/README.md` and choose a nearby complete implementation. The Gaussian cluster statistics and fixed-location covariance evidence are in `src/components/gaussian_fixed_location_iw.jl`; MFM NIW evidence is in `src/components/gaussian_niw.jl`, included by `src/models/mfm/MFMTarget.jl`. MFM predictive calculations remain in `src/models/mfm/MFMBaseline.jl`. The species-sampling components and their explicit interface are indexed in `src/components/README.md`.
 2. Specify the observation space, component parameterisation and likelihood. Provide simulation and an independent reference log density, which may be written in R or Python.
 3. List the calculations used by each selected transition: observation density, prior draws, cluster evidence, predictive density, parameter proposal and proposal density. Mark which remain analytic and which need replacement.
 4. Implement model-specific state and updates where the Gaussian assumptions no longer hold. Do not reuse Gaussian counts/means/scatter or Student laws merely because their interfaces fit. Keep parameter-update tuning explicit.

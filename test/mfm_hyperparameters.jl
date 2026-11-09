@@ -1,6 +1,6 @@
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:MFMHyperparameters)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMHyperparameters.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/algorithms/MFMHyperparameters.jl"))
 end
 module MFMHyperparameterTests
 using Test,GeneralDPPMixtures,Random,StaticArrays,LinearAlgebra,Statistics,Serialization,QuadGK,Distributions

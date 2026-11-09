@@ -11,7 +11,7 @@ The input is an unquoted numeric CSV with one header row, nonempty unique column
 
 ## Configuration
 
-The flat TOML configuration accepts the keys below. [`src/WorkbenchCLI.jl`](../src/WorkbenchCLI.jl) contains the authoritative defaults and validation. Prior-specific keys apply only to the corresponding implemented models.
+The flat TOML configuration accepts the keys below. [`src/cli/WorkbenchCLI.jl`](../src/cli/WorkbenchCLI.jl) contains the authoritative defaults and validation. Prior-specific keys apply only to the corresponding implemented models.
 
 | Key | Default | Meaning |
 |---|---|---|

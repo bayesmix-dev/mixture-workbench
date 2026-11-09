@@ -1,6 +1,6 @@
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:MFMTarget)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMTarget.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/MFMTarget.jl"))
 end
 module MFMTargetTests
 using Test,GeneralDPPMixtures,LinearAlgebra,Random,StaticArrays,SpecialFunctions,Distributions,Statistics

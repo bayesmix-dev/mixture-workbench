@@ -1,10 +1,13 @@
 module WorkbenchCLI
 
 using GeneralDPPMixtures, Random, LinearAlgebra, StaticArrays, Statistics, SHA, TOML
-include("Benchmark.jl")
+include("IOProtocol.jl")
+using .IOProtocol: validate_keys, read_numeric_csv, csvcell, writerow,
+    write_metadata, source_digest, parse_args
+include("../execution/Benchmark.jl")
 const B = Benchmark
 const G = GeneralDPPMixtures
-const ROOT = dirname(@__DIR__)
+const ROOT = dirname(dirname(@__DIR__))
 const METHODS = string.(B.METHODS)
 const DEFAULTS = Dict{String,Any}(
     "method"=>"mfm", "iterations"=>1000, "warmup"=>500, "thin"=>5,
@@ -14,11 +17,6 @@ const DEFAULTS = Dict{String,Any}(
     "strauss_activity"=>3.0, "strauss_radius"=>0.5,
     "strauss_log_interaction"=>-2.0, "save_allocations"=>true,
     "split_merge"=>false, "betas"=>[1.0], "swap_every"=>5)
-
-function validate_keys(config, allowed)
-    unknown = sort!(collect(setdiff(keys(config), allowed)))
-    isempty(unknown) || throw(ArgumentError("unknown settings: $(join(unknown, ", ")); this program runs only implemented models and settings"))
-end
 
 function inactive_keys(method)
     spectral = ("spectrum_target", "spectrum_c0", "spectrum_cutoff")
@@ -69,54 +67,6 @@ function settings(path)
     c
 end
 
-"""Read an unquoted numeric CSV with one header row. Missing/nonfinite cells fail."""
-function read_numeric_csv(path)
-    lines=readlines(path)
-    length(lines)>=2 || throw(ArgumentError("data CSV needs a header and observations"))
-    names=strip.(split(replace(lines[1], '\ufeff'=>""),','))
-    !isempty(names) && all(!isempty,names) && length(unique(names))==length(names) || throw(ArgumentError("CSV column names must be nonempty and unique"))
-    rows=Vector{Vector{Float64}}()
-    for (i,line) in enumerate(lines[2:end])
-        fields=split(strip(line),',')
-        length(fields)==length(names) || throw(ArgumentError("wrong number of CSV fields on line $(i+1)"))
-        values=tryparse.(Float64,fields)
-        all(x->x!==nothing && isfinite(x),values) || throw(ArgumentError("missing, nonnumeric or nonfinite CSV value on line $(i+1)"))
-        push!(rows,Float64.(values))
-    end
-    names,reduce(vcat,permutedims.(rows))
-end
-
-csvcell(x) = begin
-    s=string(x)
-    occursin(r"[,\"\n\r]",s) ? "\""*replace(s,"\""=>"\"\"")*"\"" : s
-end
-writerow(io, values)=println(io,join(csvcell.(collect(values)),','))
-function write_metadata(out, metadata)
-    open(joinpath(out,"metadata.toml.tmp"),"w") do io; TOML.print(io,metadata;sorted=true); end
-    open(joinpath(out,"metadata.csv.tmp"),"w") do io
-        writerow(io,("key","value"))
-        for key in sort!(collect(keys(metadata))); writerow(io,(key,metadata[key])); end
-    end
-    mv(joinpath(out,"metadata.toml.tmp"),joinpath(out,"metadata.toml");force=true)
-    mv(joinpath(out,"metadata.csv.tmp"),joinpath(out,"metadata.csv");force=true)
-end
-function source_digest()
-    files=sort!(vcat(filter(p->endswith(p,".jl"),readdir(@__DIR__;join=true)),
-        [joinpath(ROOT,"vendor/projection_DPP/src/DPPSplitMerge.jl"),joinpath(ROOT,"Project.toml"),joinpath(ROOT,"Manifest.toml")]))
-    bytes2hex(sha256(join([relpath(p,ROOT)*":"*bytes2hex(sha256(read(p))) for p in files],"\n")))
-end
-
-function parse_args(args)
-    length(args)==6 || throw(ArgumentError("usage: run.jl --config FILE.toml --data FILE.csv --output DIRECTORY"))
-    parsed=Dict{String,String}()
-    for i in 1:2:length(args)
-        args[i] in ("--config","--data","--output") || throw(ArgumentError("unknown argument $(args[i])"))
-        haskey(parsed,args[i]) && throw(ArgumentError("duplicate argument $(args[i])"))
-        parsed[args[i]]=args[i+1]
-    end
-    length(parsed)==3 || throw(ArgumentError("config, data and output are required"))
-    parsed
-end
 
 function run(config_path, data_path, output)
     c=settings(config_path)

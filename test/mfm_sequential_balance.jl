@@ -1,8 +1,8 @@
 # Standalone: julia --project=. test/mfm_sequential_balance.jl
 # Exact finite toy transitions only; no application sampling or screening.
-if !isdefined(Main,:Benchmark);include("../src/Benchmark.jl");end
+if !isdefined(Main,:Benchmark);include("../src/execution/Benchmark.jl");end
 if !isdefined(Main.Benchmark,:MFMSequentialSplitMerge)
-    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/MFMSequentialSplitMerge.jl"))
+    Base.include(Main.Benchmark,joinpath(@__DIR__,"../src/models/mfm/algorithms/MFMSequentialSplitMerge.jl"))
 end
 module MFMSequentialBalanceTests
 using Test,GeneralDPPMixtures,Random,LinearAlgebra,StaticArrays,SpecialFunctions,Serialization
