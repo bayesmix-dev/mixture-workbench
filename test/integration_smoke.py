@@ -230,6 +230,45 @@ def check_neal_fit(output: Path, observations: list[float], likelihood: str, met
     return fit
 
 
+
+def check_slice_fit(output: Path, observations: list[float]):
+    fit = check_partition_fit(output, observations, "dirichlet_process_gaussian_location")
+    assert fit.metadata["sampler"] == "slice_efficient"
+    assert fit.metadata["log_target_is_projection"] == "true"
+    assert fit.metadata["M_definition"] == "materialized_ordered_gem_prefix_including_empty_atoms"
+    assert fit.metadata["tail_stopping"] == "residual_mass_below_minimum_slice_no_fixed_truncation"
+    assert fit.parameters is not None
+    alpha = float(fit.metadata["strength"])
+    mu, sd = float(fit.metadata["base_mean"]), float(fit.metadata["base_sd"])
+    sigma = float(fit.metadata["observation_sd"])
+    for draw in fit.draws:
+        atoms = [r for r in fit.parameters if r["iteration"] == draw["iteration"]]
+        assert len(atoms) == draw["k"]
+        by_label = {r["cluster"]: r for r in atoms}
+        assert set(by_label) == set(range(1, draw["k"] + 1))
+        gems = [r["gem_index"] for r in atoms]
+        assert len(set(gems)) == draw["k"] and max(gems) <= draw["M"]
+        rows = sorted((r for r in fit.allocations if r["iteration"] == draw["iteration"]),
+                      key=lambda r: r["observation"])
+        counts = [0] * max(gems)
+        target = 0.0
+        for y, row in zip(observations, rows):
+            atom = by_label[row["cluster"]]
+            counts[atom["gem_index"] - 1] += 1
+            target += -math.log(sigma) - 0.5 * math.log(2 * math.pi) - 0.5 * ((y - atom["theta"]) / sigma) ** 2
+        tail = len(observations)
+        for count in counts:
+            tail -= count
+            a, b = 1 + count, alpha + tail
+            target += math.log(alpha) + math.lgamma(a) + math.lgamma(b) - math.lgamma(a + b)
+        target += sum(-math.log(sd) - 0.5 * math.log(2 * math.pi) - 0.5 * ((r["theta"] - mu) / sd) ** 2
+                      for r in atoms)
+        assert math.isclose(draw["ordered_log_target"], target, rel_tol=1e-11, abs_tol=1e-9), (draw, target)
+    sticks = next(r for r in fit.diagnostics if r["metric"] == "slice_stick_draws")
+    assert sticks["attempted"] >= 12 and sticks["accepted"] == sticks["attempted"]
+    return fit
+
+
 def main() -> None:
     if not JULIA or not RSCRIPT:
         raise SystemExit("Real smoke tests require Julia and Rscript; set JULIA/RSCRIPT or PATH")
@@ -382,6 +421,33 @@ def main() -> None:
         ), 1):
             config.write_text(invalid + common)
             output = directory / f"Invalid Neal {index}"
+            process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+            assert process.returncode != 0 and expected in process.stderr, process.stdout + process.stderr
+            assert not output.exists()
+        entrypoint = "examples/dp_slice/run.jl"
+        observations = [-1.2, -0.4, 0.0, 0.9, 1.3]
+        species_data.write_text("y\n" + "\n".join(map(str, observations)) + "\n")
+        settings = ('method = "slice_efficient"\nstrength = 1.0\nobservation_sd = 0.7\n'
+                    'base_mean = 0.0\nbase_sd = 2.0\n' + common)
+        config.write_text(settings)
+        outputs = []
+        for language in ("python", "R"):
+            print(f"Real smoke: {language} -> Julia efficient DP slice", flush=True)
+            output = directory / f"DP slice {language}'s output"
+            process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+            assert process.returncode == 0, process.stdout + process.stderr
+            check_slice_fit(output, observations)
+            outputs.append(output)
+        for filename in ("draws.csv", "allocations.csv", "parameters.csv", "diagnostics.csv"):
+            assert (outputs[0] / filename).read_bytes() == (outputs[1] / filename).read_bytes()
+        for index, (language, extra, expected) in enumerate((
+            ("python", 'discount = 0.3\n', "unsupported species-sampling settings"),
+            ("R", 'likelihood = "poisson_lognormal"\n', "requires gaussian_location"),
+            ("python", 'max_components = 20\n', "unsupported species-sampling settings"),
+            ("R", 'betas = [1.0, 0.8]\n', "unsupported species-sampling settings"),
+        ), 1):
+            config.write_text(settings + extra)
+            output = directory / f"Invalid DP slice {index}"
             process = invoke(language, config, species_data, output, entrypoint=entrypoint)
             assert process.returncode != 0 and expected in process.stderr, process.stdout + process.stderr
             assert not output.exists()

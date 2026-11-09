@@ -7,6 +7,7 @@ const IOProtocol = WorkbenchCLI
 const S = SpeciesSampling
 const G = GeneralDPPMixtures
 const N = GeneralDPPMixtures.NealSamplers
+const E = GeneralDPPMixtures.EfficientSlice
 
 function integer_setting(value, name; minimum=1)
     value isa Integer && !(value isa Bool) && minimum <= value <= typemax(Int) ||
@@ -28,6 +29,11 @@ function configuration(raw::AbstractDict, y; family=:pitman_yor)
         method == "pitman_yor" || throw(ArgumentError("method must be 'pitman_yor' for this entrypoint"))
         likelihood = "gaussian_location"
         allowed = union(RUN_KEYS,Set(["discount","observation_sd"]))
+    elseif family == :slice
+        method == "slice_efficient" || throw(ArgumentError("method must be 'slice_efficient' for this entrypoint"))
+        likelihood = get(raw,"likelihood","gaussian_location")
+        likelihood == "gaussian_location" || throw(ArgumentError("efficient slice currently requires gaussian_location"))
+        allowed = union(RUN_KEYS,Set(["likelihood","observation_sd"]))
     elseif family == :dirichlet_process
         method in ("neal2","neal3","neal8") ||
             throw(ArgumentError("method must be 'neal2', 'neal3' or 'neal8' for this entrypoint"))
@@ -81,7 +87,9 @@ end
 
 function initial_state(model,prior,c,chain)
     seed=G.seedof(c["seed"],chain,9201)
-    if c["method"] in ("pitman_yor","neal3")
+    if c["method"] == "slice_efficient"
+        E.initialize(model,prior,seed;initial_labels=[mod1(i,c["initial_clusters"]) for i in eachindex(model.y)])
+    elseif c["method"] in ("pitman_yor","neal3")
         S.initialize(model,prior,seed;initial_clusters=c["initial_clusters"])
     else
         N.initialize(model,prior,seed;initial_clusters=c["initial_clusters"])
@@ -90,7 +98,9 @@ end
 
 function sampler_sweep!(s,c)
     method=c["method"]
-    if method == "pitman_yor"
+    if method == "slice_efficient"
+        E.sweep!(s)
+    elseif method == "pitman_yor"
         S.collapsed_sweep!(s)
     elseif method == "neal2"
         N.neal2_sweep!(s)
@@ -113,7 +123,8 @@ function run(config_path, data_path, output;family=:pitman_yor)
     initial_state(model,prior,c,1)
     mkpath(out)
     open(joinpath(out,"config.toml"),"w") do io; TOML.print(io,c;sorted=true); end
-    retained = c["method"] in ("neal2","neal8")
+    slice = c["method"] == "slice_efficient"
+    retained = c["method"] in ("neal2","neal8") || slice
     gaussian = model isa S.GaussianLocation
     modelname = family == :pitman_yor ? "pitman_yor_gaussian_location" :
         gaussian ? "dirichlet_process_gaussian_location" : "dirichlet_process_poisson_lognormal"
@@ -125,14 +136,21 @@ function run(config_path, data_path, output;family=:pitman_yor)
         "source_digest"=>IOProtocol.source_digest(),
         "input_sha256"=>bytes2hex(sha256(read(data_path))), "config_sha256"=>bytes2hex(sha256(read(config_path))),
         "julia_version"=>string(VERSION), "run_status"=>"running", "empirical_bayes"=>false,
-        "log_target_definition"=>(retained ? "partition_eppf_times_occupied_base_and_likelihood" :
+        "log_target_definition"=>(retained && !slice ? "partition_eppf_times_occupied_base_and_likelihood" :
             "partition_eppf_times_integrated_gaussian_likelihood"),
         "allocation_labels"=>"canonical_by_first_appearance",
-        "M_definition"=>"represented_occupied_atoms_equals_k", "total_components"=>"infinite",
+        "M_definition"=>(slice ? "materialized_ordered_gem_prefix_including_empty_atoms" :
+            "represented_occupied_atoms_equals_k"), "total_components"=>"infinite",
         "counter_scope"=>"warmup_and_sampling", "mixing_assessment"=>"unassessed")
     metadata[gaussian ? "observation_sd" : "proposal_sd"] = gaussian ? model.observation_sd : model.proposal_sd
     metadata["parameter_name"] = gaussian ? "mean" : "log_rate"
-    retained && gaussian && (metadata["partition_log_target_definition"] = "partition_eppf_times_integrated_gaussian_likelihood")
+    retained && gaussian && !slice && (metadata["partition_log_target_definition"] = "partition_eppf_times_integrated_gaussian_likelihood")
+    if slice
+        metadata["internal_labels"]="ordered_gem_indices_with_gaps"
+        metadata["log_target_is_projection"]=true
+        metadata["ordered_log_target_definition"]="ordered_gem_labels_and_occupied_atoms_sticks_slices_empty_atoms_integrated"
+        metadata["tail_stopping"]="residual_mass_below_minimum_slice_no_fixed_truncation"
+    end
     haskey(c,"auxiliaries") && (metadata["auxiliaries"] = c["auxiliaries"])
     IOProtocol.write_metadata(out,metadata)
     draws = open(joinpath(out,"draws.csv"),"w")
@@ -140,9 +158,12 @@ function run(config_path, data_path, output;family=:pitman_yor)
     allocations = c["save_allocations"] ? open(joinpath(out,"allocations.csv"),"w") : nothing
     parameters = retained ? open(joinpath(out,"parameters.csv"),"w") : nothing
     headers=String["chain","iteration","k","M","entropy","log_target"]
-    retained && gaussian && push!(headers,"partition_log_target")
+    retained && gaussian && !slice && push!(headers,"partition_log_target")
+    slice && push!(headers,"ordered_log_target")
     IOProtocol.writerow(draws,headers)
-    parameters===nothing || IOProtocol.writerow(parameters,("chain","iteration","cluster","theta"))
+    parameter_headers=String["chain","iteration","cluster","theta"]
+    slice && push!(parameter_headers,"gem_index")
+    parameters===nothing || IOProtocol.writerow(parameters,parameter_headers)
     IOProtocol.writerow(diagnostics,("chain","metric","attempted","accepted","value","status"))
     allocations===nothing || IOProtocol.writerow(allocations,("chain","iteration","observation","cluster"))
     started = time()
@@ -155,14 +176,21 @@ function run(config_path, data_path, output;family=:pitman_yor)
                     labels = S.canonical_labels(s.z)
                     counts = S.cluster_counts(labels)
                     entropy = -sum(nh/length(labels)*log(nh/length(labels)) for nh in counts)
-                    lp = retained ? N.joint_logtarget(s) : S.collapsed_logtarget(s)
+                    lp = slice ? E.marginal_logtarget(s) : retained ? N.joint_logtarget(s) : S.collapsed_logtarget(s)
                     isfinite(lp) || error("sampled state has a nonfinite target")
-                    row=Any[chain,iteration,length(counts),length(counts),entropy,lp]
-                    retained && gaussian && push!(row,S.collapsed_logtarget(s))
+                    row=Any[chain,iteration,length(counts),slice ? E.materialized_count(s) : length(counts),entropy,lp]
+                    retained && gaussian && !slice && push!(row,S.collapsed_logtarget(s))
+                    slice && push!(row,E.ordered_logtarget(s))
                     IOProtocol.writerow(draws,row)
                     if parameters!==nothing
-                        for h in eachindex(s.theta)
-                            IOProtocol.writerow(parameters,(chain,iteration,h,s.theta[h]))
+                        if slice
+                            for (h,gem) in enumerate(unique(s.z))
+                                IOProtocol.writerow(parameters,(chain,iteration,h,s.theta[gem],gem))
+                            end
+                        else
+                            for h in eachindex(s.theta)
+                                IOProtocol.writerow(parameters,(chain,iteration,h,s.theta[h]))
+                            end
                         end
                     end
                     if allocations!==nothing
@@ -172,9 +200,12 @@ function run(config_path, data_path, output;family=:pitman_yor)
                     end
                 end
             end
-            IOProtocol.writerow(diagnostics,(chain,"allocation_gibbs",length(model.y)*s.sweeps,
-                length(model.y)*s.sweeps,1.0,"exact_conditional"))
-            if retained
+            updates=slice ? s.allocation_updates : length(model.y)*s.sweeps
+            IOProtocol.writerow(diagnostics,(chain,"allocation_gibbs",updates,updates,1.0,"exact_conditional"))
+            if slice
+                IOProtocol.writerow(diagnostics,(chain,"slice_stick_draws",s.stick_draws,s.stick_draws,
+                    s.stick_draws,"observed"))
+            elseif retained
                 IOProtocol.writerow(diagnostics,(chain,"atom_mh",s.atom_attempts,s.atom_accepts,
                     s.atom_attempts>0 ? s.atom_accepts/s.atom_attempts : NaN,
                     gaussian ? "not_required_exact_conditional" : "observed"))

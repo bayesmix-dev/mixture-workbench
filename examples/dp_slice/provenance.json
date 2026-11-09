@@ -1,0 +1,14 @@
+{
+  "source_repository": "https://github.com/andreateruzzi/HSNCP-consistency",
+  "local_source_relative_path": "section7_results/prepared_simulation/src/SliceSampler.jl",
+  "local_source_sha256": "1b6ea062b389bb81137809f838a12f8afd32d91ed45072dc0a66da78b89dc2dc",
+  "matching_git_commit": "d0aa54e587b36cb88a9d4aa8581ffb35eec4a149",
+  "matching_git_path": "simulation_section7/src/SliceSampler.jl",
+  "matching_git_blob": "9d7fbe572fb9aec9e2b43befec05c2027f2b6af8",
+  "first_introduced_commit": "293120143e9c00ed6430a4f3f76868acfd60e035",
+  "relationship": "Algorithm and numerical precautions audited from the earlier local study; fresh Julia implementation against the workbench component interface. No source file imported or copied wholesale. The study component priors and hyperparameter updates were not transplanted.",
+  "algorithm": "Kalli-Griffin-Walker dependent slice-efficient DP sampler, posterior sticks and slices drawn as a block, residual tail stopping",
+  "primary_reference": "https://doi.org/10.1007/s11222-009-9150-y",
+  "author_manuscript_section_2": "https://kar.kent.ac.uk/24721/1/slice_mix.pdf",
+  "audit_date": "2026-11-09"
+}

@@ -131,3 +131,7 @@ Use `--entrypoint examples/pitman_yor/run.jl` through either wrapper, or run tha
 ## Dirichlet-process entry point
 
 Use `--entrypoint examples/dirichlet_process/run.jl` with explicit `method = "neal2"`, `"neal3"` or `"neal8"`. See the [DP example](../examples/dirichlet_process/README.md) for strict model-specific settings. Neal 2/8 write an optional numeric `parameters.csv` (`chain,iteration,cluster,theta`), exposed by both wrappers; labels match allocations within a draw. Neal 3 integrates the parameters out. `log_target` has the retained joint or collapsed partition reference measure stated in metadata; Gaussian retained runs also write the atom-integrated `partition_log_target`.
+
+## Efficient DP slice entry point
+
+Use `--entrypoint examples/dp_slice/run.jl` and `method = "slice_efficient"` for the fixed-strength Gaussian DP model. See the [slice example](../examples/dp_slice/README.md). `M` is the materialized ordered prefix, including empty atoms; it can exceed `k`. Occupied parameter rows include `gem_index`, while exported allocations use matching canonical `cluster` labels. The main target is the collapsed canonical projection; the additional `ordered_log_target` retains ordered indices and occupied means. Metadata identifies both reference measures.
