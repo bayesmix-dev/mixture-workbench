@@ -1,0 +1,11 @@
+method = "mfm"
+iterations = 200
+warmup = 100
+thin = 5
+chains = 2
+seed = 42
+initial_clusters = 2
+split_merge = true
+betas = [1.0, 0.8]
+swap_every = 5
+save_allocations = true

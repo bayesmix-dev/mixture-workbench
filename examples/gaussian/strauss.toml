@@ -1,0 +1,10 @@
+method = "strauss_general"
+iterations = 200
+warmup = 100
+thin = 5
+chains = 2
+seed = 42
+initial_clusters = 2
+strauss_activity = 3.0
+strauss_radius = 0.5
+strauss_log_interaction = -2.0

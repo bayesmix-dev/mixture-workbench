@@ -1,0 +1,10 @@
+cff-version: 1.2.0
+message: "If you use this workbench, cite this repository and the commit used."
+title: "Mixture Workbench"
+type: software
+license: BSD-3-Clause
+authors:
+  - family-names: Beraha
+    given-names: Mario
+repository-code: "https://github.com/bayesmix-dev/mixture-workbench"
+abstract: "Julia reference implementations and agent extension workflows for Bayesian mixture samplers, with R and Python command-line wrappers."

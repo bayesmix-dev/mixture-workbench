@@ -1,0 +1,8 @@
+runs/
+results/
+*.jls
+__pycache__/
+*.pyc
+.DS_Store
+.Rhistory
+.RData
