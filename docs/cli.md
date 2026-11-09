@@ -123,3 +123,7 @@ The command-line equivalent is `python3 interfaces/python/mixture_workbench.py -
 Both wrappers support `--julia EXEC` and `--project-root ROOT`, with corresponding callable arguments. They run synchronously and preserve nonzero engine exit status at the command line.
 
 `--entrypoint SCRIPT` selects a different implemented Julia entry point, with a corresponding `entrypoint` callable argument. A relative script path is resolved within the project root. An extension may use this route while retaining the same input/output contract; supplying a script path does not generate its implementation.
+
+## Pitman–Yor example entry point
+
+Use `--entrypoint examples/pitman_yor/run.jl` through either wrapper, or run that script with Julia directly. Its strict configuration and Gaussian location model are documented in the [example](../examples/pitman_yor/README.md). Its single-column observations and fixed positive observation variance allow even one observation or constant data. This entry point uses user-specified priors and writes `M = k` for represented occupied atoms, with the infinite total recorded in metadata.

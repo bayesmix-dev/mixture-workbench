@@ -176,3 +176,6 @@ include("mahalanobis_repulsion.jl")
 include("mahalanobis_strauss.jl")
 include("cli.jl")
 include("poisson_lognormal.jl")
+
+include("species_sampling.jl")
+include("species_sampling_cli.jl")

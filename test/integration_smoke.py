@@ -138,6 +138,54 @@ def check_poisson_fit(output: Path, counts: list[int], components: int):
     return fit
 
 
+
+def check_partition_fit(output: Path, observations: list[float], model: str):
+    fit = read_output(output)
+    assert fit.metadata["model"] == model
+    assert fit.metadata["run_status"] == "completed"
+    assert fit.metadata["total_components"] == "infinite"
+    assert fit.metadata["empirical_bayes"] == "false"
+    assert fit.metadata["mixing_assessment"] == "unassessed"
+    assert fit.metadata["log_target_definition"] == "partition_eppf_times_integrated_gaussian_likelihood"
+    assert len(fit.draws) == 4
+    assert [r["iteration"] for r in fit.draws] == [6, 8, 10, 12]
+    assert fit.allocations is not None and len(fit.allocations) == 4 * len(observations)
+    alpha = float(fit.metadata["strength"])
+    discount = float(fit.metadata["discount"])
+    variance = float(fit.metadata["observation_sd"]) ** 2
+    base_mean = float(fit.metadata["base_mean"])
+    base_variance = float(fit.metadata["base_sd"]) ** 2
+    for draw in fit.draws:
+        assert draw["chain"] == 1
+        rows = sorted((r for r in fit.allocations if r["iteration"] == draw["iteration"]),
+                      key=lambda r: r["observation"])
+        labels = [r["cluster"] for r in rows]
+        assert [r["observation"] for r in rows] == list(range(1, len(observations) + 1))
+        assert list(dict.fromkeys(labels)) == list(range(1, draw["k"] + 1))
+        assert draw["M"] >= draw["k"]
+        if fit.metadata["M_definition"] == "represented_occupied_atoms_equals_k":
+            assert draw["M"] == draw["k"]
+        # Independent sequential prediction: CRP/PY seating probabilities and
+        # sequential Normal predictive densities reproduce the partition target.
+        counts, means, variances = {}, {}, {}
+        target = 0.0
+        for i, (label, y) in enumerate(zip(labels, observations)):
+            if i:
+                seating = counts[label] - discount if label in counts else alpha + discount * len(counts)
+                target += math.log(seating) - math.log(alpha + i)
+            mean = means.get(label, base_mean)
+            v = variances.get(label, base_variance)
+            target += -0.5 * (math.log(2 * math.pi * (variance + v)) + (y - mean) ** 2 / (variance + v))
+            posterior_variance = 1 / (1 / v + 1 / variance)
+            means[label] = posterior_variance * (mean / v + y / variance)
+            variances[label] = posterior_variance
+            counts[label] = counts.get(label, 0) + 1
+        assert math.isclose(draw["log_target"], target, rel_tol=1e-11, abs_tol=1e-9), (draw, target)
+        entropy = -sum(n / len(labels) * math.log(n / len(labels)) for n in counts.values())
+        assert math.isclose(draw["entropy"], entropy, abs_tol=1e-12)
+    return fit
+
+
 def main() -> None:
     if not JULIA or not RSCRIPT:
         raise SystemExit("Real smoke tests require Julia and Rscript; set JULIA/RSCRIPT or PATH")
@@ -229,6 +277,33 @@ def main() -> None:
             assert process.returncode != 0, process.stdout + process.stderr
             assert expected in process.stderr, process.stderr
             assert not output.exists(), "Poisson validation failure created an output directory"
+        entrypoint = "examples/pitman_yor/run.jl"
+        observations = [-1.2, -0.4, 0.0, 0.9, 1.3]
+        species_data = directory / "Species data's.csv"
+        species_data.write_text("y\n" + "\n".join(map(str, observations)) + "\n")
+        settings = ('method = "pitman_yor"\nstrength = -0.2\ndiscount = 0.4\n'
+                    'observation_sd = 0.7\nbase_mean = 0.0\nbase_sd = 2.0\n' + common)
+        config = directory / "Pitman-Yor settings.toml"
+        config.write_text(settings)
+        outputs = []
+        for language in ("python", "R"):
+            print(f"Real smoke: {language} -> Julia Pitman-Yor", flush=True)
+            output = directory / f"Pitman-Yor {language}'s output"
+            process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+            assert process.returncode == 0, process.stdout + process.stderr
+            check_partition_fit(output, observations, "pitman_yor_gaussian_location")
+            outputs.append(output)
+        for filename in ("draws.csv", "allocations.csv", "diagnostics.csv"):
+            assert (outputs[0] / filename).read_bytes() == (outputs[1] / filename).read_bytes()
+        for index, (language, replacement, expected) in enumerate((
+            ("python", ('discount = 0.4', 'discount = 1.0'), "discount"),
+            ("R", ('method = "pitman_yor"', 'method = "hdp"'), "method must be"),
+        ), 1):
+            config.write_text(settings.replace(*replacement))
+            output = directory / f"Invalid Pitman-Yor {index}"
+            process = invoke(language, config, species_data, output, entrypoint=entrypoint)
+            assert process.returncode != 0 and expected in process.stderr, process.stdout + process.stderr
+            assert not output.exists()
     print("Real Julia/Python/R smoke tests passed", flush=True)
 
 
