@@ -182,3 +182,5 @@ include("species_sampling_cli.jl")
 
 include("neal_samplers.jl")
 include("neal_cli.jl")
+include("efficient_slice.jl")
+include("slice_cli.jl")

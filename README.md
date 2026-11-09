@@ -58,6 +58,8 @@ The [Pitman–Yor extension](examples/pitman_yor/README.md) separates the partit
 
 The [Dirichlet-process extension](examples/dirichlet_process/README.md) adds Neal 2, 3 and 8, with conjugate Gaussian examples and a nonconjugate Poisson-lognormal example for Neal 8. Retained component parameters are available through both wrappers.
 
+The [efficient DP slice example](examples/dp_slice/README.md) uses a dynamically extended ordered stick representation, with provenance from the earlier HSNCP-consistency simulation and independent checks of its tail stopping and output projections.
+
 ## What is shared
 
 `src/GeneralDPPMixtures.jl` loads the Gaussian data structures, sufficient statistics, spectral representation and conditional/marginal DPP samplers. `src/Benchmark.jl` assembles additional model-specific modules, including the MFM baseline and point-process sampler. Module names are retained from the research code so that implementations and existing checks remain traceable.

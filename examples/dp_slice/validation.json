@@ -1,0 +1,63 @@
+{
+  "date": "2026-11-09",
+  "parent_extension_commit": "f0a6dfe9c3cbebaf5fe43765f2f8caf1edcc903a",
+  "environment": {
+    "julia": "1.12.3",
+    "python": "3.13.2",
+    "R": "4.5.0",
+    "platform": "macOS arm64"
+  },
+  "checks": [
+    {
+      "command": "julia --startup-file=no --project=. test/runtests.jl",
+      "status": "passed",
+      "assertions": 288130,
+      "new_kernel_assertions": 144835,
+      "new_cli_assertions": 29
+    },
+    {
+      "command": "python3 -m unittest discover -s test -p 'test_*.py'",
+      "status": "passed_on_parent_extension",
+      "tests": 20,
+      "note": "Wrapper source and contract tests unchanged since the passing PR3 run."
+    },
+    {
+      "command": "Rscript test/test_wrappers.R",
+      "status": "passed_on_parent_extension",
+      "note": "Wrapper source and contract tests unchanged since the passing PR3 run."
+    },
+    {
+      "command": "python3 test/integration_smoke.py",
+      "status": "passed",
+      "real_runs": 20,
+      "rejected_configurations": 18,
+      "new_runs": "Both wrappers run efficient DP slice; canonical marginal and ordered occupied-parameter scores independently reconstructed; seeded draws,allocations,parameters,diagnostics byte-identical."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "independent_review": {
+    "status": "passed",
+    "scope": "A separate Neal agent checked the dependent slice-efficient transition against the author manuscript, ordered GEM gaps, blocked Beta/slice law, tail stopping, log-domain sticks, projection targets, numerical errors, and CLI output mapping; no material defect reported. The reviewer independently ran the29-assertion CLI suite."
+  },
+  "corrections": [
+    {
+      "scope": "test fixture",
+      "description": "An initial Boolean-label validation fixture had been promoted to Int by Julia before reaching the API. Explicit Any element type fixed the fixture; no transition change was needed."
+    },
+    {
+      "scope": "API polish",
+      "description": "Initializer copies supplied RNGs; canonical marginal diagnostic reuses the shared stable EPPF. No fixed truncation or arbitrary statistical cap added."
+    }
+  ],
+  "limits": [
+    "Implemented for fixed positive DP strength and GaussianLocation with known observation variance and a Normal base.",
+    "No concentration hyperprior update, PYP slice sampler, nonconjugate atom updater, split-merge or tempering exposed by this entry point.",
+    "Main log_target is a canonical marginal projection; ordered_log_target integrates sticks,slices andempty parameters. Neither is the full augmented-state density.",
+    "Tiny three-observation posterior frequency checks and numerical conditional tests do not assess general mixing or comparative speed.",
+    "Unrepresentable random variates or residual arithmetic abort explicitly rather than silently truncating.",
+    "Long-run compute and memory cost grow with the dynamically required prefix; no performance benchmark is claimed."
+  ]
+}
