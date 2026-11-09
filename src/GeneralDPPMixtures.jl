@@ -7,4 +7,6 @@ include("primitives.jl")
 include("samplers.jl")
 include("experiment.jl")
 include("diagnostics.jl")
+include("SpeciesSampling.jl")
+export SpeciesSampling
 end

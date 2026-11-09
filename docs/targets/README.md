@@ -30,3 +30,9 @@ The DPP and Strauss location priors couple component locations. Their observatio
 Record the observation space, model parameters, allocation or hierarchy law, retained variables, integrated variables, support and reference measure. Identify which computations are target evaluations and which only construct a proposal. Add an independent small-case calculation before reusing a transition.
 
 See [likelihood tempering](../algorithms/tempering.md) for the intermediate distributions and [validation](../validation.md) for the scope of existing evidence.
+
+## Species-sampling priors
+
+`SpeciesSampling` supplies Dirichlet-process and Pitman–Yor partition priors independently of the component model. The [Pitman–Yor example](../../examples/pitman_yor/README.md) uses known observation variance and a Normal base distribution for component means. Its collapsed state retains only the partition; both the random measure and component means are integrated out. It uses fixed user-specified prior parameters, with no data-dependent prior fitting.
+
+For this marginal representation `M = k` records represented occupied atoms; the random measure has infinitely many atoms. Read `M_definition` in metadata before comparing component counts across representations. Split–merge and tempering for these priors require separate derived transitions and are currently rejected by their entry point.

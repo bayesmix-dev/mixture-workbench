@@ -1,0 +1,55 @@
+{
+  "date": "2026-11-09",
+  "base_commit": "de79a23cfefa17550860d365e932232b85dc6c78",
+  "environment": {
+    "julia": "1.12.3",
+    "python": "3.13.2",
+    "R": "4.5.0",
+    "platform": "macOS arm64"
+  },
+  "checks": [
+    {
+      "command": "julia --startup-file=no --project=. test/runtests.jl",
+      "status": "passed",
+      "assertions": 142257,
+      "new_core_assertions": 16517,
+      "new_cli_assertions": 44
+    },
+    {
+      "command": "python3 -m unittest discover -s test -p 'test_*.py'",
+      "status": "passed",
+      "tests": 12
+    },
+    {
+      "command": "Rscript test/test_wrappers.R",
+      "status": "passed"
+    },
+    {
+      "command": "python3 test/integration_smoke.py",
+      "status": "passed",
+      "real_runs": 10,
+      "rejected_configurations": 10,
+      "new_runs": "R and Python each run a negative-strength Pitman-Yor model; byte-identical draws/allocations/diagnostics; targets independently reconstructed using sequential prediction"
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "independent_review": {
+    "status": "passed",
+    "scope": "Separate slice-audit agent read PYP source and CLI, checking negative strength, singleton updates, canonical partition target, validation and output metadata; no material defect reported."
+  },
+  "corrections": [
+    {
+      "scope": "test helper",
+      "description": "The first standalone core test run exposed an empty-product quadrature helper error. Explicit multiplicative identity fixed the helper; no sampler change was required."
+    }
+  ],
+  "limits": [
+    "The implemented component model is univariate Gaussian location with fixed observation variance and a Normal base.",
+    "Exact finite-state transition tests and tiny posterior checks do not establish mixing or runtime performance on larger datasets.",
+    "Split-merge, tempering and hierarchical species-sampling models remain unimplemented for this entry point.",
+    "Julia ran using a directly selected installed binary and a writable temporary depot overlay; no package environment changes were needed."
+  ]
+}
