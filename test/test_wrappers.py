@@ -100,6 +100,7 @@ class WrapperTests(unittest.TestCase):
         self.assertEqual(fit.metadata["schema_version"], "1")
         self.assertEqual(fit.metadata["description"], 'quoted, value with "text"')
         self.assertIsNone(fit.allocations)
+        self.assertIsNone(fit.parameters)
 
     def test_optional_allocations_and_reload(self):
         self.config.write_text("allocations = true\n")
@@ -192,6 +193,96 @@ class WrapperTests(unittest.TestCase):
             writer.writerow(["chain", "iteration", "k", "M", "entropy", "log_target"])
             writer.writerow([1, 10, "not a number", 3, 0.693, -12.5])
         with self.assertRaisesRegex(ValueError, "Invalid numeric value"):
+            workbench.read_output(self.output)
+
+
+class ParameterOutputTests(unittest.TestCase):
+    """Read hand-written protocol fixtures without starting any engine."""
+
+    def setUp(self):
+        self.temporary = tempfile.TemporaryDirectory(prefix="workbench parameters ")
+        self.addCleanup(self.temporary.cleanup)
+        self.output = Path(self.temporary.name)
+        (self.output / "metadata.csv").write_text(
+            "key,value\nschema_version,1\nrun_status,completed\nparameter_name,mean\n"
+        )
+        (self.output / "draws.csv").write_text(
+            "chain,iteration,k,M,entropy,log_target\n1,10,2,2,.693,-12.5\n"
+        )
+        (self.output / "diagnostics.csv").write_text(
+            "chain,metric,attempted,accepted,value,status\n1,mixing,0,0,NaN,unassessed\n"
+        )
+        self.parameters = self.output / "parameters.csv"
+
+    def test_absence_preserves_older_runs_and_default_result(self):
+        self.assertIsNone(workbench.read_output(self.output).parameters)
+        result = workbench.SamplerResult(self.output, [], [], {})
+        self.assertIsNone(result.parameters)
+
+    def test_parameter_values_types_and_metadata(self):
+        self.parameters.write_text(
+            "chain,iteration,cluster,theta\n1,10,2,-.75\n2,20,1,3\n"
+        )
+        fit = workbench.read_output(self.output)
+        self.assertEqual(fit.parameters, [
+            {"chain": 1, "iteration": 10, "cluster": 2, "theta": -.75},
+            {"chain": 2, "iteration": 20, "cluster": 1, "theta": 3.0},
+        ])
+        self.assertEqual(fit.metadata["parameter_name"], "mean")
+        self.assertIsInstance(fit.parameters[1]["theta"], float)
+        for key in ("chain", "iteration", "cluster"):
+            self.assertIsInstance(fit.parameters[0][key], int)
+
+    def test_optional_gem_index_preserves_the_distinct_ordered_index(self):
+        self.parameters.write_text(
+            "chain,iteration,cluster,theta,gem_index\n1,10,2,.7,5\n"
+        )
+        fit = workbench.read_output(self.output)
+        self.assertEqual(fit.parameters[0]["cluster"], 2)
+        self.assertEqual(fit.parameters[0]["gem_index"], 5)
+        self.assertIsInstance(fit.parameters[0]["gem_index"], int)
+
+    def test_header_without_rows_is_an_empty_table(self):
+        self.parameters.write_text("chain,iteration,cluster,theta\n")
+        self.assertEqual(workbench.read_output(self.output).parameters, [])
+
+    def test_required_parameter_columns(self):
+        columns = ["chain", "iteration", "cluster", "theta"]
+        for missing in columns:
+            with self.subTest(missing=missing):
+                present = [name for name in columns if name != missing]
+                self.parameters.write_text(",".join(present) + "\n" + ",".join(["1"] * 3) + "\n")
+                with self.assertRaisesRegex(ValueError, "Missing columns in parameters.csv"):
+                    workbench.read_output(self.output)
+
+    def test_invalid_parameter_numbers_are_rejected(self):
+        columns = ["chain", "iteration", "cluster", "theta", "gem_index"]
+        for column, value in (("chain", "1.5"), ("iteration", "NaN"),
+                              ("cluster", "oops"), ("gem_index", "2.5"),
+                              ("theta", "oops"), ("theta", "NaN"), ("theta", "Inf")):
+            with self.subTest(column=column, value=value):
+                row = {name: "1" for name in columns}
+                row[column] = value
+                self.parameters.write_text(",".join(columns) + "\n" +
+                                           ",".join(row[name] for name in columns) + "\n")
+                with self.assertRaisesRegex(ValueError, "Invalid"):
+                    workbench.read_output(self.output)
+
+    def test_parameter_identifiers_must_be_positive(self):
+        columns = ["chain", "iteration", "cluster", "theta", "gem_index"]
+        for column in ("chain", "iteration", "cluster", "gem_index"):
+            for value in ("0", "-1"):
+                with self.subTest(column=column, value=value):
+                    row = {name: "1" for name in columns}
+                    row[column] = value
+                    self.parameters.write_text(",".join(columns) + "\n" +
+                                               ",".join(row[name] for name in columns) + "\n")
+                    with self.assertRaisesRegex(ValueError, "Invalid positive integer"):
+                        workbench.read_output(self.output)
+
+    def test_inconsistent_parameter_row_width_is_rejected(self):
+        self.parameters.write_text("chain,iteration,cluster,theta\n1,10,2\n")
+        with self.assertRaisesRegex(ValueError, "Inconsistent CSV row width"):
             workbench.read_output(self.output)
 
 

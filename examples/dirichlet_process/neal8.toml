@@ -1,0 +1,14 @@
+method = "neal8"
+likelihood = "gaussian_location"
+auxiliaries = 3
+strength = 1.0
+observation_sd = 0.7
+base_mean = 0.0
+base_sd = 2.0
+initial_clusters = 2
+iterations = 2000
+warmup = 500
+thin = 5
+chains = 2
+seed = 2718
+save_allocations = true

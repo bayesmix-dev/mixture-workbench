@@ -46,7 +46,8 @@ stopifnot(inherits(fit, "mixture_fit"), nrow(fit$draws) == 1L,
           fit$diagnostics$accepted == 1L,
           fit$metadata[["schema_version"]] == "1",
           fit$metadata[["description"]] == "quoted, value",
-          is.null(fit$allocations), identical(as.data.frame(fit), fit$draws))
+          is.null(fit$allocations), is.null(fit$parameters),
+          identical(as.data.frame(fit), fit$draws))
 stopifnot(identical(.mixture_workbench_root, root))
 inferred_api_output <- file.path(directory, "inferred API output")
 inferred_api_fit <- run_sampler(config, data, inferred_api_output, julia = fake_julia)
@@ -108,6 +109,57 @@ writeLines(c("chain,iteration,observation,cluster", "1,10,1,2"),
            file.path(output, "allocations.csv"))
 reloaded <- read_sampler_output(output)
 stopifnot(reloaded$allocations$cluster == 2)
+
+# Parameter table fixtures are written directly, independently of the fake
+# executable and the Julia engine.
+parameter_output <- file.path(directory, "parameter contract fixtures")
+dir.create(parameter_output)
+writeLines(c("key,value", "schema_version,1", "run_status,completed", "parameter_name,log_rate"),
+           file.path(parameter_output, "metadata.csv"))
+writeLines(c("chain,iteration,k,M,entropy,log_target", "1,10,2,2,.693,-12.5"),
+           file.path(parameter_output, "draws.csv"))
+writeLines(c("chain,metric,attempted,accepted,value,status", "1,mixing,0,0,NaN,unassessed"),
+           file.path(parameter_output, "diagnostics.csv"))
+stopifnot(is.null(read_sampler_output(parameter_output)$parameters))
+parameter_file <- file.path(parameter_output, "parameters.csv")
+writeLines(c("chain,iteration,cluster,theta", "1,10,2,-.75", "2,20,1,3"), parameter_file)
+parameter_fit <- read_sampler_output(parameter_output)
+stopifnot(is.data.frame(parameter_fit$parameters), nrow(parameter_fit$parameters) == 2L,
+          identical(parameter_fit$parameters$chain, c(1L, 2L)),
+          identical(parameter_fit$parameters$iteration, c(10L, 20L)),
+          identical(parameter_fit$parameters$cluster, c(2L, 1L)),
+          identical(parameter_fit$parameters$theta, c(-.75, 3)),
+          typeof(parameter_fit$parameters$theta) == "double",
+          parameter_fit$metadata[["parameter_name"]] == "log_rate")
+writeLines(c("chain,iteration,cluster,theta,gem_index", "1,10,2,.7,5"), parameter_file)
+ordered_parameters <- read_sampler_output(parameter_output)$parameters
+stopifnot(identical(ordered_parameters$cluster, 2L),
+          identical(ordered_parameters$gem_index, 5L))
+writeLines("chain,iteration,cluster,theta", parameter_file)
+empty_parameters <- read_sampler_output(parameter_output)$parameters
+stopifnot(is.data.frame(empty_parameters), nrow(empty_parameters) == 0L,
+          typeof(empty_parameters$chain) == "integer", typeof(empty_parameters$theta) == "double")
+for (missing in c("chain", "iteration", "cluster", "theta")) {
+  columns <- setdiff(c("chain", "iteration", "cluster", "theta"), missing)
+  writeLines(c(paste(columns, collapse = ","), "1,1,1"), parameter_file)
+  invalid <- tryCatch(read_sampler_output(parameter_output), error = identity)
+  stopifnot(inherits(invalid, "error"), grepl("Missing columns in parameters.csv", conditionMessage(invalid)))
+}
+invalid_parameters <- list(
+  c("chain", "1.5"), c("iteration", "NaN"), c("cluster", "oops"),
+  c("gem_index", "2.5"), c("theta", "oops"), c("theta", "NaN"), c("theta", "Inf")
+)
+for (column in c("chain", "iteration", "cluster", "gem_index")) {
+  invalid_parameters <- c(invalid_parameters, list(c(column, "0"), c(column, "-1"),
+                                                  c(column, "2147483648")))
+}
+for (invalid_value in invalid_parameters) {
+  row <- c(chain = "1", iteration = "10", cluster = "2", theta = ".7", gem_index = "5")
+  row[[invalid_value[[1]]]] <- invalid_value[[2]]
+  writeLines(c(paste(names(row), collapse = ","), paste(row, collapse = ",")), parameter_file)
+  invalid <- tryCatch(read_sampler_output(parameter_output), error = identity)
+  stopifnot(inherits(invalid, "error"), grepl("Invalid", conditionMessage(invalid)))
+}
 
 writeLines("fail = true", config)
 failure <- tryCatch(

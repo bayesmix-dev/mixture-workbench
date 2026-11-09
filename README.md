@@ -56,6 +56,8 @@ For a complete extension, follow the [Poisson-lognormal finite-mixture showcase]
 
 The [Pitman–Yor extension](examples/pitman_yor/README.md) separates the partition prior from a conjugate Gaussian location model. Its zero-discount case gives a Dirichlet process; the example includes source-level interfaces, archived prompts and independent small-partition checks.
 
+The [Dirichlet-process extension](examples/dirichlet_process/README.md) adds Neal 2, 3 and 8, with conjugate Gaussian examples and a nonconjugate Poisson-lognormal example for Neal 8. Retained component parameters are available through both wrappers.
+
 ## What is shared
 
 `src/GeneralDPPMixtures.jl` loads the Gaussian data structures, sufficient statistics, spectral representation and conditional/marginal DPP samplers. `src/Benchmark.jl` assembles additional model-specific modules, including the MFM baseline and point-process sampler. Module names are retained from the research code so that implementations and existing checks remain traceable.

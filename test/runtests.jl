@@ -179,3 +179,6 @@ include("poisson_lognormal.jl")
 
 include("species_sampling.jl")
 include("species_sampling_cli.jl")
+
+include("neal_samplers.jl")
+include("neal_cli.jl")

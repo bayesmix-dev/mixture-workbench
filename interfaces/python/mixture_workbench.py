@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import csv
 from dataclasses import dataclass
+import math
 from pathlib import Path
 import subprocess
 import sys
@@ -24,6 +25,7 @@ class SamplerResult:
     diagnostics: list[dict[str, Any]]
     metadata: dict[str, str]
     allocations: list[dict[str, int | float]] | None = None
+    parameters: list[dict[str, int | float]] | None = None
 
 
 def _read_table(path: Path) -> tuple[list[str], list[dict[str, str]]]:
@@ -42,7 +44,7 @@ def _numeric_table(path: Path, required: set[str]) -> list[dict[str, int | float
     missing = required.difference(fields)
     if missing:
         raise ValueError(f"Missing columns in {path.name}: {', '.join(sorted(missing))}")
-    integer_fields = {"chain", "iteration", "k", "M", "observation", "cluster"}
+    integer_fields = {"chain", "iteration", "k", "M", "observation", "cluster", "gem_index"}
     converted = []
     for row in rows:
         converted_row = {}
@@ -53,6 +55,17 @@ def _numeric_table(path: Path, required: set[str]) -> list[dict[str, int | float
                 raise ValueError(f"Invalid numeric value for {key!r} in {path}") from error
         converted.append(converted_row)
     return converted
+
+
+def _parameter_table(path: Path) -> list[dict[str, int | float]]:
+    rows = _numeric_table(path, {"chain", "iteration", "cluster", "theta"})
+    for row in rows:
+        if not math.isfinite(row["theta"]):
+            raise ValueError(f"Invalid finite theta in {path}")
+        for key in {"chain", "iteration", "cluster", "gem_index"}.intersection(row):
+            if row[key] < 1:
+                raise ValueError(f"Invalid positive integer {key!r} in {path}")
+    return rows
 
 
 def _diagnostic_value(value: str) -> str | int | float:
@@ -89,7 +102,9 @@ def read_output(output: str | Path) -> SamplerResult:
         if allocation_path.exists()
         else None
     )
-    return SamplerResult(output_path, draws, diagnostics, metadata, allocations)
+    parameter_path = output_path / "parameters.csv"
+    parameters = _parameter_table(parameter_path) if parameter_path.exists() else None
+    return SamplerResult(output_path, draws, diagnostics, metadata, allocations, parameters)
 
 
 def run_sampler(

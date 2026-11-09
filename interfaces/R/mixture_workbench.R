@@ -26,6 +26,22 @@
   table
 }
 
+.mixture_read_parameters <- function(path) {
+  table <- .mixture_read_numeric(path, c("chain", "iteration", "cluster", "theta"))
+  for (column in intersect(c("chain", "iteration", "cluster", "gem_index"), names(table))) {
+    values <- table[[column]]
+    if (any(!is.finite(values) | values < 1 | values != floor(values) |
+            values > .Machine$integer.max)) {
+      stop("Invalid positive R integer for ", column, " in ", path, call. = FALSE)
+    }
+    table[[column]] <- as.integer(values)
+  }
+  if (any(!is.finite(table$theta))) {
+    stop("Invalid finite theta in ", path, call. = FALSE)
+  }
+  table
+}
+
 read_sampler_output <- function(output) {
   output <- .mixture_path(output)
   metadata_table <- read.csv(file.path(output, "metadata.csv"),
@@ -51,12 +67,15 @@ read_sampler_output <- function(output) {
   allocations <- if (file.exists(allocations_path)) .mixture_read_numeric(
     allocations_path, c("chain", "iteration", "observation", "cluster")
   ) else NULL
+  parameters_path <- file.path(output, "parameters.csv")
+  parameters <- if (file.exists(parameters_path)) .mixture_read_parameters(parameters_path) else NULL
   structure(list(
     output = output,
     draws = draws,
     diagnostics = diagnostics,
     metadata = metadata,
-    allocations = allocations
+    allocations = allocations,
+    parameters = parameters
   ), class = "mixture_fit")
 }
 

@@ -1,0 +1,61 @@
+{
+  "date": "2026-11-09",
+  "parent_extension_commit": "edea1ef894adc3f16974d1f5376ed54fc623dc92",
+  "environment": {
+    "julia": "1.12.3",
+    "python": "3.13.2",
+    "R": "4.5.0",
+    "platform": "macOS arm64"
+  },
+  "checks": [
+    {
+      "command": "julia --startup-file=no --project=. test/runtests.jl",
+      "status": "passed",
+      "assertions": 143266,
+      "new_kernel_assertions": 965,
+      "new_cli_assertions": 44
+    },
+    {
+      "command": "python3 -m unittest discover -s test -p 'test_*.py'",
+      "status": "passed",
+      "tests": 20
+    },
+    {
+      "command": "Rscript test/test_wrappers.R",
+      "status": "passed",
+      "new_malformed_parameter_fixtures": 23
+    },
+    {
+      "command": "python3 test/integration_smoke.py",
+      "status": "passed",
+      "real_runs": 18,
+      "rejected_configurations": 14,
+      "new_runs": "Both wrappers run Gaussian Neal2/3/8 and Poisson Neal8; saved joint/partition targets reconstructed independently; seeded draws/allocations/parameters/diagnostics byte-identical across wrappers."
+    },
+    {
+      "command": "git diff --check",
+      "status": "passed"
+    }
+  ],
+  "independent_review": {
+    "status": "passed",
+    "scope": "Separate core agent checked Neal2/3/8 against Neal2000, canonical atom correspondence, singleton recycling and failure paths, reran the initial 951-check suite, then reviewed CLI and integration; no material defect reported."
+  },
+  "corrections": [
+    {
+      "scope": "test fixture",
+      "description": "A one-point range endpoint fixture was corrected after its initial construction error."
+    },
+    {
+      "scope": "production numerics",
+      "description": "Poisson MH differences now cancel factorial constants and centre small exponential changes. Fourteen additional checks include 256-bit BigFloat large-count references; final kernel suite965 checks."
+    }
+  ],
+  "limits": [
+    "Gaussian component variances and DP strength are fixed; conjugate operations are implemented only for GaussianLocation.",
+    "PoissonLogRate supports Neal8 with an invariant single-step RWM component update; Neal2/3 are rejected for it.",
+    "Tiny three-observation posterior checks do not establish general mixing or runtime performance.",
+    "Float64 full joint density values may lose absolute precision for very large counts even when MH ratio evaluation is stabilised.",
+    "Other model families, split-merge and tempering for these states remain unsupported."
+  ]
+}

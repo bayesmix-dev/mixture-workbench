@@ -127,3 +127,7 @@ Both wrappers support `--julia EXEC` and `--project-root ROOT`, with correspondi
 ## Pitman–Yor example entry point
 
 Use `--entrypoint examples/pitman_yor/run.jl` through either wrapper, or run that script with Julia directly. Its strict configuration and Gaussian location model are documented in the [example](../examples/pitman_yor/README.md). Its single-column observations and fixed positive observation variance allow even one observation or constant data. This entry point uses user-specified priors and writes `M = k` for represented occupied atoms, with the infinite total recorded in metadata.
+
+## Dirichlet-process entry point
+
+Use `--entrypoint examples/dirichlet_process/run.jl` with explicit `method = "neal2"`, `"neal3"` or `"neal8"`. See the [DP example](../examples/dirichlet_process/README.md) for strict model-specific settings. Neal 2/8 write an optional numeric `parameters.csv` (`chain,iteration,cluster,theta`), exposed by both wrappers; labels match allocations within a draw. Neal 3 integrates the parameters out. `log_target` has the retained joint or collapsed partition reference measure stated in metadata; Gaussian retained runs also write the atom-integrated `partition_log_target`.
