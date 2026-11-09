@@ -52,6 +52,8 @@ Rscript interfaces/R/run_sampler.R \
 
 [`AGENTS.md`](AGENTS.md) is the entry point for coding agents. [`CONTRIBUTING.md`](CONTRIBUTING.md) describes the evidence to include with a change.
 
+For a complete extension, follow the [Poisson-lognormal finite-mixture showcase](examples/poisson_lognormal/README.md). It adds a nonconjugate count model through ordinary Julia source, keeps both wrappers unchanged, and records the [implementation and review prompts](examples/poisson_lognormal/prompts.md) and [validation evidence](examples/poisson_lognormal/validation.json).
+
 ## What is shared
 
 `src/GeneralDPPMixtures.jl` loads the Gaussian data structures, sufficient statistics, spectral representation and conditional/marginal DPP samplers. `src/Benchmark.jl` assembles additional model-specific modules, including the MFM baseline and point-process sampler. Module names are retained from the research code so that implementations and existing checks remain traceable.

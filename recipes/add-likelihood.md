@@ -11,3 +11,5 @@
 7. Expose the implementation through the CLI only after the complete path works. Document settings, outputs, supported moves and checks.
 
 Record the substantive prompts and corrections if this is an agent-assisted showcase. Finish with the model specification, source files, reproduction commands, validation outcomes and unresolved checks.
+
+A complete source-level example is the [Poisson-lognormal finite mixture](../examples/poisson_lognormal/README.md), including its task prompts and validation record.

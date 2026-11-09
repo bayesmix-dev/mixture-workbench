@@ -25,13 +25,17 @@ RSCRIPT = os.environ.get("RSCRIPT") or shutil.which("Rscript")
 TIMEOUT = int(os.environ.get("MIXTURE_SMOKE_TIMEOUT", "600"))
 
 
-def invoke(language: str, config: Path, data: Path, output: Path) -> subprocess.CompletedProcess:
+def invoke(
+    language: str, config: Path, data: Path, output: Path, entrypoint: str | None = None
+) -> subprocess.CompletedProcess:
     if language == "python":
         command = [sys.executable, str(ROOT / "interfaces/python/mixture_workbench.py")]
     else:
         command = [RSCRIPT, str(ROOT / "interfaces/R/run_sampler.R")]
     command += ["--config", str(config), "--data", str(data), "--output", str(output),
                 "--julia", JULIA]
+    if entrypoint is not None:
+        command += ["--entrypoint", entrypoint]
     return subprocess.run(command, cwd=ROOT, capture_output=True, text=True, timeout=TIMEOUT)
 
 
@@ -69,6 +73,68 @@ def check_fit(output: Path, method: str, n: int):
             transport = list(csv.DictReader(handle))
         assert len(transport) == 8
         assert {float(row["beta"]) for row in transport} == {1.0, 0.8}
+    return fit
+
+
+def check_poisson_fit(output: Path, counts: list[int], components: int):
+    fit = read_output(output)
+    assert fit.metadata["schema_version"] == "1"
+    assert fit.metadata["run_status"] == "completed"
+    assert fit.metadata["model"] == "poisson_lognormal_fixed_finite"
+    assert int(fit.metadata["components"]) == components
+    assert int(fit.metadata["n"]) == len(counts) and fit.metadata["d"] == "1"
+    assert fit.metadata["empirical_bayes"] == "false"
+    assert "matching_eta_columns" in fit.metadata["allocation_labels"]
+    for key in ("source_digest", "extension_source_digest", "input_sha256", "config_sha256"):
+        assert len(fit.metadata[key]) == 64, key
+    assert len(fit.draws) == 4
+    assert [row["iteration"] for row in fit.draws] == [6, 8, 10, 12]
+    expected_columns = {"chain", "iteration", "k", "M", "entropy", "log_target"}
+    expected_columns.update(f"eta_{h}" for h in range(1, components + 1))
+    assert all(set(draw) == expected_columns for draw in fit.draws)
+    assert fit.allocations is not None and len(fit.allocations) == 4 * len(counts)
+
+    gamma = float(fit.metadata["weight_shape"])
+    mu = float(fit.metadata["base_mean"])
+    sd = float(fit.metadata["base_sd"])
+    for draw in fit.draws:
+        assert draw["chain"] == 1 and draw["M"] == components
+        assert 1 <= draw["k"] <= components
+        eta = [draw[f"eta_{h}"] for h in range(1, components + 1)]
+        assert all(isinstance(value, float) and math.isfinite(value) for value in eta)
+        allocation = sorted(
+            (row for row in fit.allocations if row["iteration"] == draw["iteration"]),
+            key=lambda row: row["observation"],
+        )
+        assert [row["observation"] for row in allocation] == list(range(1, len(counts) + 1))
+        assert all(row["chain"] == 1 for row in allocation)
+        labels = [row["cluster"] for row in allocation]
+        assert list(dict.fromkeys(labels)) == list(range(1, draw["k"] + 1))
+        occupancies = [labels.count(h) for h in range(1, components + 1)]
+        assert all(occupancies[h] == 0 for h in range(draw["k"], components))
+
+        # Reconstruct the labelled joint target independently from the exported
+        # allocations and eta columns. This checks their correspondence, including
+        # the base density for empty components, rather than only checking shape.
+        target = math.lgamma(components * gamma) - math.lgamma(len(counts) + components * gamma)
+        target += sum(math.lgamma(nh + gamma) - math.lgamma(gamma) for nh in occupancies)
+        target += sum(-math.log(sd) - 0.5 * math.log(2 * math.pi)
+                      - 0.5 * ((value - mu) / sd) ** 2 for value in eta)
+        target += sum(y * eta[label - 1] - math.exp(eta[label - 1]) - math.lgamma(y + 1)
+                      for y, label in zip(counts, labels))
+        assert math.isclose(draw["log_target"], target, rel_tol=1e-11, abs_tol=1e-9), (
+            draw, target, "Exported allocations do not match the eta columns"
+        )
+        entropy = -sum(nh / len(counts) * math.log(nh / len(counts))
+                       for nh in occupancies if nh)
+        assert math.isclose(draw["entropy"], entropy, abs_tol=1e-12)
+
+    rate = next(row for row in fit.diagnostics if row["metric"] == "log_rate_mh")
+    refresh = next(row for row in fit.diagnostics if row["metric"] == "empty_component_prior_refresh")
+    mixing = next(row for row in fit.diagnostics if row["metric"] == "mixing")
+    assert 0 <= rate["accepted"] <= rate["attempted"]
+    assert rate["attempted"] + refresh["attempted"] == 12 * components
+    assert mixing["status"] == "unassessed"
     return fit
 
 
@@ -119,6 +185,50 @@ def main() -> None:
             assert process.returncode != 0, process.stdout + process.stderr
             assert expected in process.stderr, process.stderr
             assert not output.exists(), "Validation failure created an output directory"
+
+        entrypoint = "examples/poisson_lognormal/run.jl"
+        count_data = directory / "Poisson count data's.csv"
+        shutil.copyfile(ROOT / "examples/poisson_lognormal/counts.csv", count_data)
+        with count_data.open(newline="") as handle:
+            counts = [int(row["count"]) for row in csv.DictReader(handle)]
+        poisson_common = (
+            "weight_shape = 0.5\nbase_mean = 1.0\nbase_sd = 1.5\nproposal_sd = 0.6\n"
+            "iterations = 12\nwarmup = 4\nthin = 2\nchains = 1\nseed = 42\n"
+            "save_allocations = true\n"
+        )
+        config = directory / "Poisson extension settings.toml"
+        config.write_text('method = "poisson_lognormal"\ncomponents = 3\n' + poisson_common)
+        outputs = []
+        for language in ("python", "R"):
+            print(f"Real smoke: {language} -> Julia Poisson extension", flush=True)
+            output = directory / f"Poisson {language}'s output"
+            process = invoke(language, config, count_data, output, entrypoint=entrypoint)
+            assert process.returncode == 0, process.stdout + process.stderr
+            check_poisson_fit(output, counts, components=3)
+            outputs.append(output)
+        for filename in ("draws.csv", "allocations.csv", "diagnostics.csv"):
+            assert (outputs[0] / filename).read_bytes() == (outputs[1] / filename).read_bytes(), (
+                filename, "R/Python extension runs disagree for the same seed"
+            )
+
+        invalid_poisson = (
+            ("python", 'method = "poisson_lognormal"\ncomponents = 3\nzero_inflation = true\n',
+             "unsupported Poisson-lognormal settings"),
+            ("R", 'method = "hdp"\ncomponents = 3\n', "method must be 'poisson_lognormal'"),
+            ("python", 'method = "poisson_lognormal"\ncomponents = 0\n',
+             "components must be an integer >= 1"),
+            ("R", 'method = "poisson_lognormal"\ncomponents = 3\nsplit_merge = true\n',
+             "unsupported Poisson-lognormal settings"),
+        )
+        for index, (language, settings, expected) in enumerate(invalid_poisson, 1):
+            print(f"Real smoke: reject unsupported Poisson configuration {index}", flush=True)
+            config = directory / f"invalid Poisson settings {index}.toml"
+            config.write_text(settings + poisson_common)
+            output = directory / f"invalid Poisson output {index}"
+            process = invoke(language, config, count_data, output, entrypoint=entrypoint)
+            assert process.returncode != 0, process.stdout + process.stderr
+            assert expected in process.stderr, process.stderr
+            assert not output.exists(), "Poisson validation failure created an output directory"
     print("Real Julia/Python/R smoke tests passed", flush=True)
 
 

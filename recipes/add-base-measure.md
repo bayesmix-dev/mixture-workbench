@@ -11,3 +11,5 @@
 7. Document supported combinations and reject unsupported settings explicitly.
 
 Deliver the model/state specification, source, example and validation outcomes. Keep correctness evidence and empirical exploration separate.
+
+A complete source-level example is the [Poisson-lognormal finite mixture](../examples/poisson_lognormal/README.md), including its task prompts and validation record.
